@@ -10,3 +10,5 @@ FIREBASE_SETUP.md
 
 # Python
 __pycache__/
+
+.vscode/

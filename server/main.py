@@ -92,7 +92,7 @@ def echo():
 register_signup_routes(app)
 
 # Register users routes
-register_users_routes(app)
+# register_users_routes(app)
 
 if __name__ == '__main__':
     app.run(debug=True)
