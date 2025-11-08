@@ -1,1 +1,11 @@
+# Environment variables
 .env
+
+# Firebase setup guide
+FIREBASE_SETUP.md
+
+# OS
+.DS_Store
+
+# Python
+__pycache__/
