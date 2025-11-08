@@ -9,11 +9,11 @@
 * Suhani Rana
 
 # 💻 Tech Stack
-Frontend
+### Frontend
 - React
 - TailwindCSS
 - Vite (Builder)
-Backend
+### Backend
 - Python
 - Firebase
 
