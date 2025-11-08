@@ -3,12 +3,15 @@ import firebase_admin
 from firebase_admin import credentials, auth
 import os
 from dotenv import load_dotenv
+from flasgger import Swagger
+
 from signup import register_signup_routes # Signup routes
 
 # Load environment variables from .env file
 load_dotenv()
 
 app = Flask(__name__)
+swagger = Swagger(app)
 
 # Initialize Firebase Admin SDK with service account credentials from .env
 # Read individual Firebase service account fields from environment variables
@@ -39,10 +42,49 @@ firebase_admin.initialize_app(cred)
 
 @app.route('/')
 def home():
+    """
+    Home endpoint
+    ---
+    tags:
+      - General
+    responses:
+      200:
+        description: Welcome message
+        schema:
+          type: object
+          properties:
+            message:
+              type: string
+              example: "Hello from Flask! 🎉"
+    """
     return jsonify(message="Hello from Flask! 🎉")
 
 @app.route('/api/echo', methods=['POST'])
 def echo():
+    """
+    Echo endpoint
+    ---
+    tags:
+      - API
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          properties:
+            data:
+              type: string
+              example: "test data"
+    responses:
+      200:
+        description: Returns the received data
+        schema:
+          type: object
+          properties:
+            received:
+              type: object
+    """
     data = request.get_json()
     return jsonify(received=data)
 

@@ -1,5 +1,6 @@
 # Environment variables
 .env
+.venv
 
 # Firebase setup guide
 FIREBASE_SETUP.md
