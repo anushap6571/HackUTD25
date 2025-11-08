@@ -55,8 +55,7 @@ def register_users_routes(app):
                     'credit_score': credit_score,
                     'budget': budget,
                     'email': user_record.email,
-                    'displayName': user_record.display_name,
-                    'updatedAt': user_record.user_metadata.creation_timestamp if user_record.user_metadata else None
+                    'display_name': user_record.display_name
                 }, merge=True)
 
                 return jsonify({
@@ -103,7 +102,7 @@ def get_users_routes(app):
             uid: The user's unique identifier
         
         Returns:
-            JSON response with user information including displayName
+            JSON response with user information including display_name
         """
         try:
             # Validate UID is provided
@@ -125,9 +124,7 @@ def get_users_routes(app):
                 user_data = {
                     'uid': user_record.uid,
                     'email': user_record.email,
-                    'displayName': user_record.display_name,
-                    'emailVerified': user_record.email_verified,
-                    'createdAt': user_record.user_metadata.creation_timestamp if user_record.user_metadata else None
+                    'display_name': user_record.display_name,
                 }
                 
                 # Add Firestore data if document exists

@@ -19,11 +19,11 @@ def register_signup_routes(app):
         {
             "email": "user@example.com",
             "password": "password123",
-            "displayName": "User Name" (optional)
+            "display_name": "User Name"
         }
         
         Returns:
-            JSON response with user ID, email, and displayName on success
+            JSON response with user ID, email, and display_name on success
         """
         try:
             # Get JSON data from request
@@ -35,10 +35,10 @@ def register_signup_routes(app):
                     'message': 'Request body must contain JSON data'
                 }), 400
             
-            # Extract email, password, and displayName
+            # Extract email, password, and display_name
             email = data.get('email')
             password = data.get('password')
-            display_name = data.get('displayName')
+            display_name = data.get('display_name')
             
             # Validate required fields
             if not email:
@@ -74,7 +74,7 @@ def register_signup_routes(app):
                     password=password,
                     display_name=display_name if display_name else None,
                 )
-                
+
                 # Return success response
                 return jsonify({
                     'success': True,
@@ -82,7 +82,7 @@ def register_signup_routes(app):
                     'user': {
                         'uid': user_record.uid,
                         'email': user_record.email,
-                        'displayName': user_record.display_name,
+                        'display_name': user_record.display_name,
                     }
                 }), 201
                 
@@ -189,8 +189,7 @@ def register_signup_routes(app):
                             'message': 'Login successful',
                             'user': {
                                 'uid': user_record.uid,
-                                'email': user_record.email,
-                                # 'emailVerified': user_record.email_verified
+                                'email': user_record.email
                             }
                         }), 200
                         
