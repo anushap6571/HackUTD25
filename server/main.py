@@ -1,11 +1,13 @@
 from flask import Flask, jsonify, request
 import firebase_admin
-from firebase_admin import credentials, auth
+from firebase_admin import credentials, auth, firestore
 import os
 from dotenv import load_dotenv
 from flasgger import Swagger
 
+# Routes
 from signup import register_signup_routes # Signup routes
+from users import register_users_routes, get_users_routes # Users routes
 
 # Load environment variables from .env file
 load_dotenv()
@@ -39,6 +41,11 @@ if missing_fields:
 # credentials.Certificate() accepts a dictionary directly, not just JSON
 cred = credentials.Certificate(firebase_cred_dict)
 firebase_admin.initialize_app(cred)
+
+# Initialize Firestore (Firebase Database)
+# Firestore is automatically initialized when Firebase Admin SDK is initialized
+# You can access it using: firestore.client()
+db = firestore.client()
 
 @app.route('/')
 def home():
@@ -93,6 +100,9 @@ register_signup_routes(app)
 
 # Register users routes
 register_users_routes(app)
+
+# Get users routes
+get_users_routes(app)
 
 if __name__ == '__main__':
     app.run(debug=True)
