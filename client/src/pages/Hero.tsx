@@ -1,8 +1,11 @@
 import { Link } from 'react-router-dom';
+import { Header } from '../components/Header';
+import { Footer } from '../components/Footer';
 
 export const Hero = () => {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-primary to-secondary text-white">
+    <div className="min-h-screen flex flex-col bg-background-light">
+      <Header/>
       <div className="text-center px-4">
         <h1 className="text-6xl font-bold mb-6">Welcome</h1>
         <p className="text-xl mb-8">Get started by signing in or creating an account</p>
@@ -21,6 +24,7 @@ export const Hero = () => {
           </Link>
         </div>
       </div>
+      <Footer/>
     </div>
   );
 };
