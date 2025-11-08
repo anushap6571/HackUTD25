@@ -8,12 +8,13 @@ import {
 } from 'firebase/auth';
 import type { User } from 'firebase/auth';
 import { auth } from '../config/firebase';
+import api from '../config/api';
 
 interface AuthContextType {
   currentUser: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  signup: (email: string, password: string) => Promise<void>;
+  signup: (email: string, password: string, firstName?: string, lastName?: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -31,12 +32,38 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const signup = async (email: string, password: string) => {
-    await createUserWithEmailAndPassword(auth, email, password);
+  const signup = async (email: string, password: string, firstName?: string, lastName?: string) => {
+    try {
+      // First, create user via backend
+      await api.post('/signup', {
+        email,
+        password,
+        firstName,
+        lastName,
+      });
+      
+      // Then authenticate with Firebase Client SDK for session management
+      await createUserWithEmailAndPassword(auth, email, password);
+    } catch (error: any) {
+      // If backend signup succeeds but Firebase client auth fails,
+      // user is created but session isn't established
+      throw error;
+    }
   };
 
   const login = async (email: string, password: string) => {
-    await signInWithEmailAndPassword(auth, email, password);
+    try {
+      // Verify credentials with backend
+      await api.post('/login', {
+        email,
+        password,
+      });
+      
+      // Then authenticate with Firebase Client SDK for session management
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (error: any) {
+      throw error;
+    }
   };
 
   const logout = async () => {

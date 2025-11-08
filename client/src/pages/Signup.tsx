@@ -19,11 +19,6 @@ export const Signup = () => {
     e.preventDefault();
     setError('');
 
-    if (password !== confirmPassword) {
-      setError('Passwords do not match');
-      return;
-    }
-
     if (password.length < 6) {
       setError('Password must be at least 6 characters');
       return;
@@ -32,7 +27,8 @@ export const Signup = () => {
     setLoading(true);
 
     try {
-      await signup(email, password);
+      // Pass firstName and lastName to signup
+      await signup(email, password, firstName, lastName);
       navigate('/home');
     } catch (err: any) {
       setError(err.message || 'Failed to create account');
