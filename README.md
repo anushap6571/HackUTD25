@@ -3,10 +3,10 @@
 # 🌟 Features
 
 # 🏆 The Dream Team
-Anusha Patel
-Joseph Botros
-Mercedes Xiong
-Suhani Rana
+* Anusha Patel
+* Joseph Botros
+* Mercedes Xiong
+* Suhani Rana
 
 # 💻 Tech Stack
 Frontend
