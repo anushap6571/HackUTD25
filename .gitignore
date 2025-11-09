@@ -1,1 +1,14 @@
-client/.env
+# Environment variables
+.env
+.venv
+
+# Firebase setup guide
+FIREBASE_SETUP.md
+
+# OS
+.DS_Store
+
+# Python
+__pycache__/
+
+/client/.env

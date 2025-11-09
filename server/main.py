@@ -92,26 +92,6 @@ def echo():
     """
     Echo endpoint
     ---
-    tags:
-      - API
-    parameters:
-      - in: body
-        name: body
-        required: true
-        schema:
-          type: object
-          properties:
-            data:
-              type: string
-              example: "test data"
-    responses:
-      200:
-        description: Returns the received data
-        schema:
-          type: object
-          properties:
-            received:
-              type: object
     """
     data = request.get_json()
     return jsonify(received=data)
