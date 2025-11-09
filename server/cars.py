@@ -72,6 +72,8 @@ def get_cars_routes(app):
                 
             # Get user document from Firestore
             user_entry = db.collection('users').document(uid).get()
+
+            print("this is the user entry", user_entry)
             
             if not user_entry.exists:
                 return jsonify({
@@ -82,9 +84,11 @@ def get_cars_routes(app):
             user_data = user_entry.to_dict()
 
             # Get budget and credit_score from user data
+
             budget = user_data.get('budget')
+            print(budget)
             credit_score = user_data.get('credit_score')
-            
+            print(credit_score)
             if not budget:
                 return jsonify({
                     'error': 'Missing budget',
@@ -97,7 +101,34 @@ def get_cars_routes(app):
                     'message': 'User credit score is required. Please update user profile first.'
                 }), 400
 
-            # Read car data from CSV
+            # Check if user already has car recommendations stored
+            cars_ref = db.collection('user_cars').document(uid).collection('cars')
+            existing_cars_docs = cars_ref.get()
+            
+            # Convert to list to check if there are any documents
+            existing_cars_list = list(existing_cars_docs)
+            
+            # If user already has cars stored, return them instead of reading CSV
+            if existing_cars_list:
+                car_recommendations = []
+                for doc in existing_cars_list:
+                    car_data = doc.to_dict()
+                    car_recommendations.append(car_data)
+                
+                # Sort by Entry_price descending (same as when generating new)
+                car_recommendations.sort(key=lambda x: x.get('Entry_price', 0), reverse=True)
+                
+                # Reset indices when returning existing cars
+                reset_indices(uid)
+                
+                return jsonify({
+                    'success': True,
+                    'message': f'Found {len(car_recommendations)} cars within your budget (from cache)',
+                    'cars': car_recommendations,
+                    'count': len(car_recommendations)
+                }), 200
+
+            # If no existing cars, read car data from CSV and generate recommendations
             csv_path = os.path.join(os.path.dirname(__file__), 'Toyota_price_table.csv')
             cars_df = pd.read_csv(csv_path)
             

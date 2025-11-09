@@ -1,96 +1,266 @@
 import { useState, useEffect } from 'react';
 import { Header } from '../components/Header';
-import { Footer } from '../components/Footer';
 import { Sidebar } from '../components/Sidebar';
 import { CarRecCard } from '../components/CarRecCard';
 import { CarRecModal } from '../components/CarRecModal';
 import { ChevronLeft, ChevronRight, Send } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import api from '../config/api';
+
+// Type for car data from backend
+interface BackendCar {
+  make: string;
+  model: string;
+  Entry_price: number;
+  year: number;
+  image_url: string;
+  down_payment: number;
+  down_payment_rate: number;
+  car_id: string;
+}
+
+// Type for car data expected by CarRecCard
+interface CarData {
+  image?: string;
+  model: string;
+  year: number;
+  totalCost: number;
+  suggestedDownPayment: number;
+}
+
+// Helper function to map backend car to CarRecCard format
+const mapBackendCarToCarData = (backendCar: BackendCar): CarData => {
+  return {
+    image: backendCar.image_url,
+    model: backendCar.model,
+    year: backendCar.year,
+    totalCost: backendCar.Entry_price,
+    suggestedDownPayment: backendCar.down_payment,
+  };
+};
 
 export const Comparison = () => {
-  // Sample car data - you can replace this with actual data
-  const carData = [
-    {
-      model: 'Toyota Corolla',
-      year: 2026,
-      totalCost: 10998,
-      suggestedDownPayment: 4998,
-    },
-    {
-      model: 'Honda Civic',
-      year: 2025,
-      totalCost: 12998,
-      suggestedDownPayment: 5998,
-    },
-    {
-      model: 'Ford Mustang',
-      year: 2026,
-      totalCost: 25998,
-      suggestedDownPayment: 9998,
-    },
-  ];
-
-  const [leftCardIndex, setLeftCardIndex] = useState(0);
-  const [rightCardIndex, setRightCardIndex] = useState(1);
-  const [isAnimating, setIsAnimating] = useState(false);
-  const [slideDirection, setSlideDirection] = useState<'left' | 'right' | null>(null);
-  const [selectedCar, setSelectedCar] = useState<typeof carData[0] | null>(null);
+  const { currentUser } = useAuth();
+  const [leftCar, setLeftCar] = useState<CarData | null>(null);
+  const [rightCar, setRightCar] = useState<CarData | null>(null);
+  const [newLeftCar, setNewLeftCar] = useState<CarData | null>(null);
+  const [newRightCar, setNewRightCar] = useState<CarData | null>(null);
+  const [isLeftAnimating, setIsLeftAnimating] = useState(false);
+  const [isRightAnimating, setIsRightAnimating] = useState(false);
+  const [leftSlideDirection, setLeftSlideDirection] = useState<'left' | 'right' | null>(null);
+  const [rightSlideDirection, setRightSlideDirection] = useState<'left' | 'right' | null>(null);
+  const [selectedCar, setSelectedCar] = useState<CarData | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [chatPrompt, setChatPrompt] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const handlePrevious = () => {
-    if (isAnimating) return;
+  // Fetch initial car recommendations
+  useEffect(() => {
+    const fetchInitialCars = async () => {
+      if (!currentUser?.uid) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setError(null);
+        
+        // Fetch car recommendations from backend
+        const response = await api.get(`/cars/${currentUser.uid}`);
+        console.log(currentUser.uid);
+        console.log(response);
+
+        
+        if (response.success && response.cars && response.cars.length >= 2) {
+          // Map backend cars to CarRecCard format
+          const mappedCars = response.cars.map(mapBackendCarToCarData);
+          setLeftCar(mappedCars[0]);  // First car (index 0 - even)
+          setRightCar(mappedCars[1]); // Second car (index 1 - odd)
+        } else if (response.success && response.cars && response.cars.length === 1) {
+          // Only one car available - use it for both sides
+          const mappedCar = mapBackendCarToCarData(response.cars[0]);
+          setLeftCar(mappedCar);
+          setRightCar(mappedCar);
+        } else {
+          setError('No car recommendations available. Please update your profile with budget and credit score.');
+        }
+      } catch (err: any) {
+        console.error('Error fetching car recommendations:', err);
+        setError(err.message || 'Failed to load car recommendations');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchInitialCars();
+  }, [currentUser?.uid]);
+
+  // Left card navigation handlers
+  const handleLeftCardPrev = async () => {
+    if (isLeftAnimating || !currentUser?.uid) return;
     
-    setIsAnimating(true);
-    setSlideDirection('left');
+    setIsLeftAnimating(true);
+    setLeftSlideDirection('left');
     
-    setTimeout(() => {
-      // Update left card to previous, right card stays the same
-      setLeftCardIndex((prev) => (prev > 0 ? prev - 1 : carData.length - 1));
-      setIsAnimating(false);
-      setSlideDirection(null);
-    }, 300); // Match animation duration
+    try {
+      const response = await api.get(`/cars/${currentUser.uid}/prev?side=left`);
+      
+      if (response.error) {
+        console.log(response.message || response.error);
+        setIsLeftAnimating(false);
+        setLeftSlideDirection(null);
+        return;
+      }
+      
+      if (response.success && response.car) {
+        const mappedCar = mapBackendCarToCarData(response.car);
+        setNewLeftCar(mappedCar);
+        
+        setTimeout(() => {
+          setLeftCar(mappedCar);
+          setNewLeftCar(null);
+          setIsLeftAnimating(false);
+          setLeftSlideDirection(null);
+        }, 300);
+      } else {
+        setIsLeftAnimating(false);
+        setLeftSlideDirection(null);
+      }
+    } catch (err: any) {
+      console.error('Error fetching previous car for left:', err);
+      setIsLeftAnimating(false);
+      setLeftSlideDirection(null);
+    }
   };
 
-  const handleNext = () => {
-    if (isAnimating) return;
+  const handleLeftCardNext = async () => {
+    if (isLeftAnimating || !currentUser?.uid) return;
     
-    setIsAnimating(true);
-    setSlideDirection('right');
+    setIsLeftAnimating(true);
+    setLeftSlideDirection('right');
     
-    setTimeout(() => {
-      // Update right card to next, left card stays the same
-      setRightCardIndex((prev) => (prev < carData.length - 1 ? prev + 1 : 0));
-      setIsAnimating(false);
-      setSlideDirection(null);
-    }, 300); // Match animation duration
+    try {
+      const response = await api.get(`/cars/${currentUser.uid}/next?side=left`);
+      
+      if (response.error) {
+        console.log(response.message || response.error);
+        setIsLeftAnimating(false);
+        setLeftSlideDirection(null);
+        return;
+      }
+      
+      if (response.success && response.car) {
+        const mappedCar = mapBackendCarToCarData(response.car);
+        setNewLeftCar(mappedCar);
+        
+        setTimeout(() => {
+          setLeftCar(mappedCar);
+          setNewLeftCar(null);
+          setIsLeftAnimating(false);
+          setLeftSlideDirection(null);
+        }, 300);
+      } else {
+        setIsLeftAnimating(false);
+        setLeftSlideDirection(null);
+      }
+    } catch (err: any) {
+      console.error('Error fetching next car for left:', err);
+      setIsLeftAnimating(false);
+      setLeftSlideDirection(null);
+    }
+  };
+
+  // Right card navigation handlers
+  const handleRightCardPrev = async () => {
+    if (isRightAnimating || !currentUser?.uid) return;
+    
+    setIsRightAnimating(true);
+    setRightSlideDirection('left');
+    
+    try {
+      const response = await api.get(`/cars/${currentUser.uid}/prev?side=right`);
+      
+      if (response.error) {
+        console.log(response.message || response.error);
+        setIsRightAnimating(false);
+        setRightSlideDirection(null);
+        return;
+      }
+      
+      if (response.success && response.car) {
+        const mappedCar = mapBackendCarToCarData(response.car);
+        setNewRightCar(mappedCar);
+        
+        setTimeout(() => {
+          setRightCar(mappedCar);
+          setNewRightCar(null);
+          setIsRightAnimating(false);
+          setRightSlideDirection(null);
+        }, 300);
+      } else {
+        setIsRightAnimating(false);
+        setRightSlideDirection(null);
+      }
+    } catch (err: any) {
+      console.error('Error fetching previous car for right:', err);
+      setIsRightAnimating(false);
+      setRightSlideDirection(null);
+    }
+  };
+
+  const handleRightCardNext = async () => {
+    if (isRightAnimating || !currentUser?.uid) return;
+    
+    setIsRightAnimating(true);
+    setRightSlideDirection('right');
+    
+    try {
+      const response = await api.get(`/cars/${currentUser.uid}/next?side=right`);
+      
+      if (response.error) {
+        console.log(response.message || response.error);
+        setIsRightAnimating(false);
+        setRightSlideDirection(null);
+        return;
+      }
+      
+      if (response.success && response.car) {
+        const mappedCar = mapBackendCarToCarData(response.car);
+        setNewRightCar(mappedCar);
+        
+        setTimeout(() => {
+          setRightCar(mappedCar);
+          setNewRightCar(null);
+          setIsRightAnimating(false);
+          setRightSlideDirection(null);
+        }, 300);
+      } else {
+        setIsRightAnimating(false);
+        setRightSlideDirection(null);
+      }
+    } catch (err: any) {
+      console.error('Error fetching next car for right:', err);
+      setIsRightAnimating(false);
+      setRightSlideDirection(null);
+    }
   };
   
   // Calculate positions for animation
   const getLeftCardTransform = () => {
-    if (slideDirection === 'left') return '-translate-x-full';
+    if (leftSlideDirection === 'left') return '-translate-x-full';
+    if (leftSlideDirection === 'right') return 'translate-x-full';
     return '';
   };
 
   const getRightCardTransform = () => {
-    if (slideDirection === 'right') return 'translate-x-full';
+    if (rightSlideDirection === 'left') return '-translate-x-full';
+    if (rightSlideDirection === 'right') return 'translate-x-full';
     return '';
   };
 
-  // Get the new card index that will appear
-  const getNewCardIndex = () => {
-    if (slideDirection === 'left') {
-      // New card appears on left, coming from right
-      return (leftCardIndex - 1 + carData.length) % carData.length;
-    } else if (slideDirection === 'right') {
-      // New card appears on right, coming from left
-      return (rightCardIndex + 1) % carData.length;
-    }
-    return null;
-  };
-
-  const newCardIndex = getNewCardIndex();
-
-  const handleCardClick = (car: typeof carData[0]) => {
+  const handleCardClick = (car: CarData) => {
     setSelectedCar(car);
     setIsModalOpen(true);
   };
@@ -107,29 +277,8 @@ export const Comparison = () => {
     setChatPrompt('');
   };
 
-  // Add keyboard event listener for arrow keys
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      // Only handle arrow keys if not currently animating and not typing in an input
-      if (isAnimating) return;
-      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
-        return;
-      }
-
-      if (event.key === 'ArrowLeft') {
-        event.preventDefault();
-        handlePrevious();
-      } else if (event.key === 'ArrowRight') {
-        event.preventDefault();
-        handleNext();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isAnimating, handlePrevious, handleNext]); // Include handlers in dependencies
+  // Add keyboard event listener for arrow keys (optional - can be removed if not needed)
+  // Note: Keyboard navigation is now handled by individual card arrows
 
   return (
     <div className="min-h-screen flex flex-col bg-background-light">
@@ -159,82 +308,157 @@ export const Comparison = () => {
             </form>
           </div>
           
+          {/* Loading State */}
+          {loading && (
+            <div className="flex justify-center items-center py-12">
+              <p className="text-text-secondary">Loading car recommendations...</p>
+            </div>
+          )}
+
+          {/* Error State */}
+          {error && !loading && (
+            <div className="flex justify-center items-center py-12">
+              <p className="text-red-500">{error}</p>
+            </div>
+          )}
+
           {/* Two Cards Side-by-Side with Animation */}
-          <div className="grid grid-cols-2 gap-4 mb-3 relative">
-            {/* Left Card Container - Fixed position */}
-            <div className="relative overflow-hidden">
-              {/* Existing Left Card */}
-              <div
-                className={`transition-transform duration-300 ease-in-out ${getLeftCardTransform()} cursor-pointer`}
-                onClick={() => handleCardClick(carData[leftCardIndex])}
-              >
-                <CarRecCard 
-                  key={`left-${leftCardIndex}-${slideDirection}`}
-                  carData={carData[leftCardIndex]} 
-                />
-              </div>
+          {!loading && !error && leftCar && rightCar && (
+            <div className="grid grid-cols-2 gap-4 mb-3 relative">
+              {/* Left Card Container - Fixed position */}
+              <div className="relative overflow-hidden">
+                {/* Navigation Arrows for Left Card */}
+                <div className="absolute top-1/2 left-2 z-10 transform -translate-y-1/2">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleLeftCardPrev();
+                    }}
+                    disabled={isLeftAnimating || !currentUser?.uid}
+                    className="w-8 h-8 rounded-full bg-container-primary border border-container-stroke flex items-center justify-center hover:bg-container-secondary transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                    aria-label="Previous Left Card"
+                  >
+                    <ChevronLeft className="w-4 h-4 text-text-dark" />
+                  </button>
+                </div>
+                <div className="absolute top-1/2 right-2 z-10 transform -translate-y-1/2">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleLeftCardNext();
+                    }}
+                    disabled={isLeftAnimating || !currentUser?.uid}
+                    className="w-8 h-8 rounded-full bg-container-primary border border-container-stroke flex items-center justify-center hover:bg-container-secondary transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                    aria-label="Next Left Card"
+                  >
+                    <ChevronRight className="w-4 h-4 text-text-dark" />
+                  </button>
+                </div>
 
-              {/* New Card - Slides in from right when left arrow clicked */}
-              {slideDirection === 'left' && newCardIndex !== null && (
+                {/* Existing Left Card */}
                 <div
-                  className="absolute left-0 top-0 w-full animate-slideInFromRight cursor-pointer"
-                  onClick={() => handleCardClick(carData[newCardIndex])}
+                  className={`transition-transform duration-300 ease-in-out ${getLeftCardTransform()} cursor-pointer`}
+                  onClick={() => handleCardClick(leftCar)}
                 >
                   <CarRecCard 
-                    key={`new-left-${newCardIndex}`}
-                    carData={carData[newCardIndex]} 
+                    key={`left-${leftCar.model}-${leftCar.year}`}
+                    carData={leftCar} 
                   />
                 </div>
-              )}
-            </div>
 
-            {/* Right Card Container - Fixed position */}
-            <div className="relative overflow-hidden">
-              {/* Existing Right Card */}
-              <div
-                className={`transition-transform duration-300 ease-in-out ${getRightCardTransform()} cursor-pointer`}
-                onClick={() => handleCardClick(carData[rightCardIndex])}
-              >
-                <CarRecCard 
-                  key={`right-${rightCardIndex}-${slideDirection}`}
-                  carData={carData[rightCardIndex]} 
-                />
+                {/* New Card - Slides in when navigating */}
+                {leftSlideDirection === 'left' && newLeftCar && (
+                  <div
+                    className="absolute left-0 top-0 w-full animate-slideInFromRight cursor-pointer"
+                    onClick={() => handleCardClick(newLeftCar)}
+                  >
+                    <CarRecCard 
+                      key={`new-left-${newLeftCar.model}-${newLeftCar.year}`}
+                      carData={newLeftCar} 
+                    />
+                  </div>
+                )}
+                {leftSlideDirection === 'right' && newLeftCar && (
+                  <div
+                    className="absolute left-0 top-0 w-full animate-slideInFromLeft cursor-pointer"
+                    onClick={() => handleCardClick(newLeftCar)}
+                  >
+                    <CarRecCard 
+                      key={`new-left-${newLeftCar.model}-${newLeftCar.year}`}
+                      carData={newLeftCar} 
+                    />
+                  </div>
+                )}
               </div>
 
-              {/* New Card - Slides in from left when right arrow clicked */}
-              {slideDirection === 'right' && newCardIndex !== null && (
+              {/* Right Card Container - Fixed position */}
+              <div className="relative overflow-hidden">
+                {/* Navigation Arrows for Right Card */}
+                <div className="absolute top-1/2 left-2 z-10 transform -translate-y-1/2">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRightCardPrev();
+                    }}
+                    disabled={isRightAnimating || !currentUser?.uid}
+                    className="w-8 h-8 rounded-full bg-container-primary border border-container-stroke flex items-center justify-center hover:bg-container-secondary transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                    aria-label="Previous Right Card"
+                  >
+                    <ChevronLeft className="w-4 h-4 text-text-dark" />
+                  </button>
+                </div>
+                <div className="absolute top-1/2 right-2 z-10 transform -translate-y-1/2">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRightCardNext();
+                    }}
+                    disabled={isRightAnimating || !currentUser?.uid}
+                    className="w-8 h-8 rounded-full bg-container-primary border border-container-stroke flex items-center justify-center hover:bg-container-secondary transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                    aria-label="Next Right Card"
+                  >
+                    <ChevronRight className="w-4 h-4 text-text-dark" />
+                  </button>
+                </div>
+
+                {/* Existing Right Card */}
                 <div
-                  className="absolute right-0 top-0 w-full animate-slideInFromLeft cursor-pointer"
-                  onClick={() => handleCardClick(carData[newCardIndex])}
+                  className={`transition-transform duration-300 ease-in-out ${getRightCardTransform()} cursor-pointer`}
+                  onClick={() => handleCardClick(rightCar)}
                 >
                   <CarRecCard 
-                    key={`new-right-${newCardIndex}`}
-                    carData={carData[newCardIndex]} 
+                    key={`right-${rightCar.model}-${rightCar.year}`}
+                    carData={rightCar} 
                   />
                 </div>
-              )}
-            </div>
-          </div>
 
-          {/* Navigation Arrows */}
-          <div className="flex justify-center gap-4 pb-2">
-            <button
-              onClick={handlePrevious}
-              disabled={isAnimating}
-              className="w-10 h-10 rounded-full bg-container-primary border border-container-stroke flex items-center justify-center hover:bg-container-secondary transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-              aria-label="Previous"
-            >
-              <ChevronLeft className="w-5 h-5 text-text-dark" />
-            </button>
-            <button
-              onClick={handleNext}
-              disabled={isAnimating}
-              className="w-10 h-10 rounded-full bg-container-primary border border-container-stroke flex items-center justify-center hover:bg-container-secondary transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-              aria-label="Next"
-            >
-              <ChevronRight className="w-5 h-5 text-text-dark" />
-            </button>
-          </div>
+                {/* New Card - Slides in when navigating */}
+                {rightSlideDirection === 'left' && newRightCar && (
+                  <div
+                    className="absolute right-0 top-0 w-full animate-slideInFromRight cursor-pointer"
+                    onClick={() => handleCardClick(newRightCar)}
+                  >
+                    <CarRecCard 
+                      key={`new-right-${newRightCar.model}-${newRightCar.year}`}
+                      carData={newRightCar} 
+                    />
+                  </div>
+                )}
+                {rightSlideDirection === 'right' && newRightCar && (
+                  <div
+                    className="absolute right-0 top-0 w-full animate-slideInFromLeft cursor-pointer"
+                    onClick={() => handleCardClick(newRightCar)}
+                  >
+                    <CarRecCard 
+                      key={`new-right-${newRightCar.model}-${newRightCar.year}`}
+                      carData={newRightCar} 
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
         </main>
       </div>
       
