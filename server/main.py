@@ -13,6 +13,7 @@ import numpy as np
 # Routes
 from signup import register_signup_routes # Signup routes
 from users import register_users_routes, get_users_routes # Users routes
+from cars import get_cars_routes # Cars routes
 
 # Load environment variables from .env file
 load_dotenv()
@@ -109,7 +110,11 @@ downpayment_routes(app)
 
 
 # Register users routes
-# register_users_routes(app)
+register_users_routes(app)
+get_users_routes(app)
+
+# Register cars routes
+get_cars_routes(app)
 
 # ML Model Routes
 # Load models
@@ -156,8 +161,7 @@ def predict():
     return jsonify(response)
 
 
-# Get users routes
-get_users_routes(app)
+
 
 if __name__ == '__main__':
     app.run(debug=True)

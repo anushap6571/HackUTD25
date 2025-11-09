@@ -48,6 +48,86 @@ def map_toyota_model_to_type(vehicle_model: str, fallback: str = "Sedan") -> str
     return fallback
 
 
+def calculate_downpayment(car_price: float, credit_score: int, loan_term: int, 
+                         vehicle_year: int, vehicle_model: str = None, 
+                         vehicle_type: str = None, current_year: int = 2025) -> dict:
+    """
+    Calculate downpayment for a car purchase.
+    
+    Args:
+        car_price: Price of the car
+        credit_score: User's credit score
+        loan_term: Loan term in months
+        vehicle_year: Year of the vehicle
+        vehicle_model: Model name of the vehicle (optional)
+        vehicle_type: Type of vehicle (optional, will be inferred from model if not provided)
+        current_year: Current year (default: 2025)
+    
+    Returns:
+        Dictionary with 'down_payment' and 'total_rate' keys
+    """
+    # Determine vehicle type
+    if not vehicle_type:
+        vehicle_type = map_toyota_model_to_type(vehicle_model) if vehicle_model else "Sedan"
+    else:
+        vehicle_type = vehicle_type.strip().title()
+    
+    base_rate = 0.10  # 10% base down payment
+
+    # --- Credit score adjustment ---
+    if credit_score >= 750:
+        credit_adj = -0.02  # very good credit → lower DP
+    elif credit_score >= 700:
+        credit_adj = 0.00   # good credit → base
+    elif credit_score >= 650:
+        credit_adj = 0.03   # fair credit → +3%
+    else:
+        credit_adj = 0.07   # poor credit → +7%
+
+    # --- Loan term adjustment ---
+    if loan_term <= 24:
+        term_adj = -0.01
+    elif loan_term <= 36:
+        term_adj = 0.00
+    elif loan_term <= 48:
+        term_adj = 0.02
+    else:
+        term_adj = 0.04
+
+    # --- Vehicle type adjustment ---
+    type_adj_map = {
+        "Sedan": 0.00,
+        "SUV": 0.02,
+        "Truck": 0.03,
+        "Luxury": 0.05,
+        "Sports": 0.07,
+    }
+    type_adj = type_adj_map.get(vehicle_type, 0.00)
+
+    # --- Vehicle age adjustment ---
+    age = current_year - vehicle_year
+    if age <= 1:
+        age_adj = 0.02  # new car → slightly higher DP
+    elif age <= 5:
+        age_adj = 0.00  # normal depreciation
+    else:
+        age_adj = -0.02  # older car → lower DP
+
+    # --- Combine adjustments ---
+    total_rate = base_rate + credit_adj + term_adj + type_adj + age_adj
+
+    # Clamp within realistic bounds (5%–30%)
+    total_rate = max(0.05, min(total_rate, 0.30))
+
+    # --- Compute down payment ---
+    down_payment = car_price * total_rate
+    
+    return {
+        "down_payment": round(down_payment, 7),
+        "total_rate": round(total_rate * 100, 1)
+    }
+
+
 def downpayment_routes(app):
 
     @app.route('/downpayments', methods=['GET', 'POST'])
@@ -69,63 +149,18 @@ def downpayment_routes(app):
         provided_vehicle_type = payload.get("vehicle_type")
         vehicle_model = payload.get("vehicle_model")
 
-        vehicle_type = (provided_vehicle_type or "").strip().title()
-        if not vehicle_type:
-            vehicle_type = map_toyota_model_to_type(vehicle_model)
-
-        base_rate = 0.10  # 10% base down payment
-
-        # --- Credit score adjustment ---
-        if credit_score >= 750:
-            credit_adj = -0.02  # very good credit → lower DP
-        elif credit_score >= 700:
-            credit_adj = 0.00   # good credit → base
-        elif credit_score >= 650:
-            credit_adj = 0.03   # fair credit → +3%
-        else:
-            credit_adj = 0.07   # poor credit → +7%
-
-        # --- Loan term adjustment ---
-        if loan_term <= 24:
-            term_adj = -0.01
-        elif loan_term <= 36:
-            term_adj = 0.00
-        elif loan_term <= 48:
-            term_adj = 0.02
-        else:
-            term_adj = 0.04
-
-        # --- Vehicle type adjustment ---
-        type_adj_map = {
-            "Sedan": 0.00,
-            "SUV": 0.02,
-            "Truck": 0.03,
-            "Luxury": 0.05,
-            "Sports": 0.07,
-        }
-        type_adj = type_adj_map.get(vehicle_type, 0.00)
-
-        # --- Vehicle age adjustment ---
-        age = current_year - vehicle_year
-        if age <= 1:
-            age_adj = 0.02  # new car → slightly higher DP
-        elif age <= 5:
-            age_adj = 0.00  # normal depreciation
-        else:
-            age_adj = -0.02  # older car → lower DP
-
-        # --- Combine adjustments ---
-        total_rate = base_rate + credit_adj + term_adj + type_adj + age_adj
-
-        # Clamp within realistic bounds (5%–30%)
-        total_rate = max(0.05, min(total_rate, 0.30))
-
-        # --- Compute down payment ---
-        down_payment = car_price * total_rate
-        return jsonify({
-            "down_payment": round(down_payment, 7),
-            "total_rate": round(total_rate * 100, 1)
-        })
+        # Use the reusable calculation function
+        result = calculate_downpayment(
+            car_price=car_price,
+            credit_score=credit_score,
+            loan_term=loan_term,
+            vehicle_year=vehicle_year,
+            vehicle_model=vehicle_model,
+            vehicle_type=provided_vehicle_type,
+            current_year=current_year
+        )
+        
+        return jsonify(result)
         
 
 
