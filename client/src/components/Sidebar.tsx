@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Home, FileText, Grid3x3, BarChart3, User } from 'lucide-react';
+import { Home, BarChart3, User, GalleryHorizontal, Rows3, MapIcon} from 'lucide-react';
 
 export const Sidebar = () => {
   const location = useLocation();
@@ -18,7 +18,7 @@ export const Sidebar = () => {
   };
 
   return (
-    <aside className="w-20 bg-container-primary rounded-lg p-4 flex flex-col items-center space-y-3 self-stretch">
+    <aside className="w-20 flex-shrink-0 flex-grow-0 bg-container-primary rounded-lg p-4 flex flex-col items-center space-y-3 self-stretch">
       {/* Logo at the top */}
       <div className="mb-2">
         <img src="/logo.png" alt="Logo" className="w-12 h-12" />
@@ -34,15 +34,20 @@ export const Sidebar = () => {
           <Home className="w-6 h-6" />
         </Link>
 
-        {/* Window/Panel Icon */}
-        <div className={iconClass(false)}>
-          <FileText className="w-6 h-6" />
-        </div>
+        {/* Window/Panel Icon - Comparison */}
+        <Link 
+          to="/comparison" 
+          className={`${iconClass(isActive('/comparison'))} no-underline`}
+        >
+          <GalleryHorizontal className="w-6 h-6" />
+        </Link>
 
         {/* Grid/Apps Icon */}
-        <div className={iconClass(false)}>
-          <Grid3x3 className="w-6 h-6" />
-        </div>
+        <Link
+          to="/map"
+          className={`${iconClass(isActive('/map'))} no-underline`}>
+            <MapIcon className="w-6 h-6" />
+          </Link>
 
         {/* Chart/Graph Icon */}
         <Link 

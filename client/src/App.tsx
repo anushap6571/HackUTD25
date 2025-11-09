@@ -7,6 +7,8 @@ import { Signup } from './pages/Signup';
 import { Home } from './pages/Home';
 import { Analytics } from './pages/Analytics';
 import { Profile } from './pages/Profile';
+import {Comparison} from './pages/Comparison';
+import { Map } from './pages/Map';
 
 function App() {
   return (
@@ -29,6 +31,22 @@ function App() {
             element={
               <ProtectedRoute>
                 <Analytics />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/comparison"
+            element={
+              <ProtectedRoute>
+                <Comparison />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/map"
+            element={
+              <ProtectedRoute>
+                <Map />
               </ProtectedRoute>
             }
           />

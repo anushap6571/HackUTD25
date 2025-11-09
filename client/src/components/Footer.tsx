@@ -9,10 +9,10 @@ export const Footer = () => {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div className="col-span-1 md:col-span-2">
             <Link to="/" className="text-xl font-bold text-primary mb-4 inline-block">
-              App
+              CarCents
             </Link>
             <p className="text-text-secondary text-sm mt-2">
-              Your application description goes here. Build amazing experiences with our platform.
+              Making cents make sense.
             </p>
           </div>
           <div>

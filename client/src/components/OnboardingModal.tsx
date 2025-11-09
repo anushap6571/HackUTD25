@@ -7,10 +7,22 @@ interface OnboardingModalProps {
 }
 
 export const OnboardingModal = ({ isOpen, onClose, onComplete }: OnboardingModalProps) => {
-  const [creditScore, setCreditScore] = useState(50);
+  // Credit score range: 300-850
+  const minCreditScore = 300;
+  const maxCreditScore = 850;
+  const defaultCreditScore = 575; // Midpoint
+  
+  // Slider value (0-100) that maps to credit score (300-850)
+  const [creditScoreSlider, setCreditScoreSlider] = useState(50); // 50% = 575
   const [budget, setBudget] = useState(100000);
 
   if (!isOpen) return null;
+
+  // Convert slider value (0-100) to credit score (300-850)
+  const creditScore = Math.round(minCreditScore + (creditScoreSlider / 100) * (maxCreditScore - minCreditScore));
+  
+  // Convert credit score (300-850) to slider percentage for display
+  const creditScorePercentage = ((creditScore - minCreditScore) / (maxCreditScore - minCreditScore)) * 100;
 
   const handleSubmit = () => {
     onComplete(creditScore, budget);
@@ -52,7 +64,7 @@ export const OnboardingModal = ({ isOpen, onClose, onComplete }: OnboardingModal
             {/* Value Display Bubble */}
             <div 
               className="absolute top-0 transform -translate-x-1/2 transition-all duration-150"
-              style={{ left: `calc(${creditScore}% - 0px)` }}
+              style={{ left: `calc(${creditScorePercentage}% - 0px)` }}
             >
               <div className="bg-primary text-text-light px-3 py-1.5 rounded text-sm font-medium whitespace-nowrap shadow-lg">
                 {creditScore}
@@ -66,7 +78,7 @@ export const OnboardingModal = ({ isOpen, onClose, onComplete }: OnboardingModal
                 {/* Filled portion (red) */}
                 <div 
                   className="absolute h-2 bg-primary rounded-full transition-all duration-150"
-                  style={{ width: `${creditScore}%` }}
+                  style={{ width: `${creditScorePercentage}%` }}
                 />
                 
                 {/* Slider Input (invisible, for interaction) */}
@@ -74,15 +86,15 @@ export const OnboardingModal = ({ isOpen, onClose, onComplete }: OnboardingModal
                   type="range"
                   min="0"
                   max="100"
-                  value={creditScore}
-                  onChange={(e) => setCreditScore(Number(e.target.value))}
+                  value={creditScoreSlider}
+                  onChange={(e) => setCreditScoreSlider(Number(e.target.value))}
                   className="absolute inset-0 w-full h-2 opacity-0 cursor-pointer z-10"
                 />
                 
                 {/* Slider Thumb */}
                 <div 
                   className="absolute w-5 h-5 bg-primary rounded-full border-2 border-container-primary shadow-lg transform -translate-y-1.5 -translate-x-1/2 top-1/2 transition-all duration-150 z-20"
-                  style={{ left: `${creditScore}%` }}
+                  style={{ left: `${creditScorePercentage}%` }}
                 />
               </div>
               
