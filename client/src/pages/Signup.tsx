@@ -125,7 +125,7 @@ export const Signup = () => {
                 disabled={loading}
                 className="w-full bg-primary text-text-light py-2 rounded-lg font-semibold hover:opacity-90 transition disabled:opacity-50"
               >
-                {loading ? 'Signing in...' : 'Sign in'}
+                {loading ? 'Signing in...' : 'Sign up'}
               </button>
             </form>
 
