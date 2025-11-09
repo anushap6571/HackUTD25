@@ -1,11 +1,14 @@
 from flask import Flask, jsonify, request
 import firebase_admin
-from firebase_admin import credentials, auth
+from firebase_admin import credentials, auth, firestore
 import os
 from dotenv import load_dotenv
 from flasgger import Swagger
 from pathlib import Path
+from downpayment import downpayment_routes
 
+import joblib
+import numpy as np
 from signup import register_signup_routes # Signup routes
 from users import register_users_routes  # Add this import
 from flask_cors import CORS  # Add this import
@@ -13,6 +16,8 @@ from flask_cors import CORS  # Add this import
 # Get the directory where this script is located
 BASE_DIR = Path(__file__).parent.resolve()
 ENV_PATH = BASE_DIR / '.env'
+from users import register_users_routes, get_users_routes # Users routes
+from cars import get_cars_routes # Cars routes
 
 # Load environment variables from .env file
 # Explicitly specify the path to ensure it's found
@@ -57,6 +62,11 @@ if missing_fields:
 cred = credentials.Certificate(firebase_cred_dict)
 firebase_admin.initialize_app(cred)
 print("✅ Firebase Admin SDK initialized successfully\n")
+
+# Initialize Firestore (Firebase Database)
+# Firestore is automatically initialized when Firebase Admin SDK is initialized
+# You can access it using: firestore.client()
+db = firestore.client()
 
 @app.route('/')
 def home():
@@ -116,6 +126,11 @@ except Exception as e:
     import traceback
     traceback.print_exc()
 
+# Register downpayment routes
+downpayment_routes(app)
+
+
+
 # Register users routes
 print("🔍 Registering users routes...")
 try:
@@ -131,6 +146,58 @@ print("\n📋 All registered routes:")
 for rule in app.url_map.iter_rules():
     methods = ', '.join(sorted(rule.methods - {'HEAD', 'OPTIONS'}))
     print(f"  {methods:20} {rule.rule:30} -> {rule.endpoint}")
+register_users_routes(app)
+get_users_routes(app)
+
+# Register cars routes
+get_cars_routes(app)
+
+# ML Model Routes
+# Load models
+apr_model = joblib.load("apr_model.pkl")
+risk_model = joblib.load("risk_model.pkl")
+
+@app.route("/predict", methods=["POST"])
+def predict():
+    data = request.get_json()
+    features = np.array([[
+        data["credit_score"],
+        data["loan_term"],
+        data["car_price"],
+        data["vehicle_age"],
+        data["down_payment_rate"]
+    ]])
+
+    # Predict APR and Default Risk
+    apr = apr_model.predict(features)[0]
+    risk = risk_model.predict_proba(features)[0][1]  # Probability of default
+
+    # --- Calculate monthly payment ---
+    car_price = float(data["car_price"])
+    down_payment_rate = float(data["down_payment_rate"])
+    loan_term = int(data["loan_term"])
+    
+    down_payment = car_price * down_payment_rate
+    loan_amount = car_price - down_payment
+    monthly_rate = (apr / 100) / 12
+
+    # Avoid division by zero if rate is 0%
+    if monthly_rate == 0:
+        monthly_payment = loan_amount / loan_term
+    else:
+        monthly_payment = loan_amount * (monthly_rate * (1 + monthly_rate)**loan_term) / ((1 + monthly_rate)**loan_term - 1)
+
+    response = {
+        "predicted_apr": round(apr, 2),
+        "default_risk_probability": round(risk, 3),
+        "monthly_payment": round(monthly_payment, 2),
+        "recommendation": "Increase down payment" if risk > 0.6 else "Good standing"
+    }
+
+    return jsonify(response)
+
+
+
 
 if __name__ == '__main__':
     app.run(debug=True)

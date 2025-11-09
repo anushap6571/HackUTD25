@@ -20,5 +20,7 @@ deactivate
 ## dependancies 
 ```
 pip install -r requirements.txt
+pip install -r firebase_admin
+pip install -r flasgger
 ```
 

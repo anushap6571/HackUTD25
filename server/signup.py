@@ -9,90 +9,21 @@ def register_signup_routes(app):
     Register signup routes with the Flask app.
     Uses Firebase Admin SDK to create users.
     """
-    
+
     @app.route('/signup', methods=['POST'])
     def signup():
         """
-        Create a new user account using Firebase Admin SDK
-        ---
-        tags:
-          - Authentication
-        parameters:
-          - in: body
-            name: body
-            required: true
-            schema:
-              type: object
-              required:
-                - email
-                - password
-              properties:
-                email:
-                  type: string
-                  format: email
-                  example: "user@example.com"
-                password:
-                  type: string
-                  minLength: 6
-                  example: "password123"
-                firstName:
-                  type: string
-                  example: "John"
-                lastName:
-                  type: string
-                  example: "Doe"
-                displayName:
-                  type: string
-                  example: "John Doe"
-        responses:
-          201:
-            description: User created successfully
-            schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                message:
-                  type: string
-                  example: "User created successfully"
-                user:
-                  type: object
-                  properties:
-                    uid:
-                      type: string
-                    email:
-                      type: string
-                    displayName:
-                      type: string
-          400:
-            description: Bad request (missing/invalid data)
-            schema:
-              type: object
-              properties:
-                error:
-                  type: string
-                message:
-                  type: string
-          409:
-            description: User already exists
-            schema:
-              type: object
-              properties:
-                error:
-                  type: string
-                  example: "User already exists"
-                message:
-                  type: string
-          500:
-            description: Server error
-            schema:
-              type: object
-              properties:
-                error:
-                  type: string
-                message:
-                  type: string
+        Create a new user account using Firebase Admin SDK.
+        
+        Expected JSON payload:
+        {
+            "email": "user@example.com",
+            "password": "password123",
+            "display_name": "User Name"
+        }
+        
+        Returns:
+            JSON response with user ID, email, and display_name on success
         """
         try:
             # Get JSON data from request
@@ -153,7 +84,7 @@ def register_signup_routes(app):
                     password=password,
                     display_name=display_name if display_name else None,
                 )
-                
+
                 # Return success response
                 return jsonify({
                     'success': True,
@@ -161,7 +92,7 @@ def register_signup_routes(app):
                     'user': {
                         'uid': user_record.uid,
                         'email': user_record.email,
-                        'displayName': user_record.display_name,
+                        'display_name': user_record.display_name,
                     }
                 }), 201
                 
@@ -192,84 +123,17 @@ def register_signup_routes(app):
     @app.route('/login', methods=['POST'])
     def login():
         """
-        Verify user credentials and return user info
-        ---
-        tags:
-          - Authentication
-        parameters:
-          - in: body
-            name: body
-            required: true
-            schema:
-              type: object
-              required:
-                - email
-                - password
-              properties:
-                email:
-                  type: string
-                  format: email
-                  example: "user@example.com"
-                password:
-                  type: string
-                  example: "password123"
-        responses:
-          200:
-            description: Login successful
-            schema:
-              type: object
-              properties:
-                success:
-                  type: boolean
-                  example: true
-                message:
-                  type: string
-                  example: "Login successful"
-                user:
-                  type: object
-                  properties:
-                    uid:
-                      type: string
-                    email:
-                      type: string
-          400:
-            description: Bad request (missing data)
-            schema:
-              type: object
-              properties:
-                error:
-                  type: string
-                message:
-                  type: string
-          401:
-            description: Invalid credentials
-            schema:
-              type: object
-              properties:
-                error:
-                  type: string
-                  example: "Invalid credentials"
-                message:
-                  type: string
-                  example: "Invalid email or password"
-          404:
-            description: User not found
-            schema:
-              type: object
-              properties:
-                error:
-                  type: string
-                message:
-                  type: string
-          500:
-            description: Server error
-            schema:
-              type: object
-              properties:
-                error:
-                  type: string
-                message:
-                  type: string
+        Verify user credentials and return user info.
+        Client should authenticate directly with Firebase client SDK after this.
+        
+        Expected JSON payload:
+        {
+            "email": "user@example.com",
+            "password": "password123"
+        }
+        
+        Returns:
+            JSON response with user info on success
         """
         try:
             # Get JSON data from request
@@ -339,8 +203,7 @@ def register_signup_routes(app):
                             'message': 'Login successful',
                             'user': {
                                 'uid': user_record.uid,
-                                'email': user_record.email,
-                                # 'emailVerified': user_record.email_verified
+                                'email': user_record.email
                             }
                         }), 200
                         
