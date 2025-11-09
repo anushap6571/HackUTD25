@@ -10,7 +10,6 @@ from downpayment import downpayment_routes
 import joblib
 import numpy as np
 from signup import register_signup_routes # Signup routes
-from users import register_users_routes  # Add this import
 from flask_cors import CORS  # Add this import
 
 # Get the directory where this script is located
@@ -126,7 +125,7 @@ print("\n📋 All registered routes:")
 for rule in app.url_map.iter_rules():
     methods = ', '.join(sorted(rule.methods - {'HEAD', 'OPTIONS'}))
     print(f"  {methods:20} {rule.rule:30} -> {rule.endpoint}")
-register_users_routes(app)
+#register_users_routes(app)
 get_users_routes(app)
 
 # Register cars routes

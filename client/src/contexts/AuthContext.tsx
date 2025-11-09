@@ -35,19 +35,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signup = async (email: string, password: string, firstName?: string, lastName?: string) => {
     try {
       // First, create user via backend
-      await api.post('/signup', {
+      const response = await api.post('/signup', {
         email,
         password,
         firstName,
         lastName,
       });
       
-      // Then authenticate with Firebase Client SDK for session management
-      await createUserWithEmailAndPassword(auth, email, password);
+      // Backend successfully created the user, now sign in with Firebase Client SDK
+      // Since the user already exists (created by backend), we sign in instead of creating
+      await signInWithEmailAndPassword(auth, email, password);
     } catch (error: any) {
-      // If backend signup succeeds but Firebase client auth fails,
-      // user is created but session isn't established
-      throw error;
+      // Handle backend errors
+      if (error.response?.status === 409) {
+        // User already exists - try to sign in instead
+        try {
+          await signInWithEmailAndPassword(auth, email, password);
+        } catch (signInError: any) {
+          throw new Error('An account with this email already exists. Please sign in instead.');
+        }
+      } else if (error.code === 'auth/email-already-in-use') {
+        // If Firebase says user exists, just sign in
+        await signInWithEmailAndPassword(auth, email, password);
+      } else {
+        // Re-throw other errors
+        throw error;
+      }
     }
   };
 
