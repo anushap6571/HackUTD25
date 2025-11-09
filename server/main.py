@@ -4,6 +4,11 @@ from firebase_admin import credentials, auth
 import os
 from dotenv import load_dotenv
 from flasgger import Swagger
+from downpayment import downpayment_routes
+
+
+import joblib
+import numpy as np
 
 from signup import register_signup_routes # Signup routes
 
@@ -39,6 +44,9 @@ if missing_fields:
 # credentials.Certificate() accepts a dictionary directly, not just JSON
 cred = credentials.Certificate(firebase_cred_dict)
 firebase_admin.initialize_app(cred)
+
+
+
 
 @app.route('/')
 def home():
@@ -91,8 +99,58 @@ def echo():
 # Register signup and login routes
 register_signup_routes(app)
 
+# Register downpayment routes
+downpayment_routes(app)
+
+
+
 # Register users routes
 # register_users_routes(app)
+
+# ML Model Routes
+# Load models
+apr_model = joblib.load("apr_model.pkl")
+risk_model = joblib.load("risk_model.pkl")
+
+@app.route("/predict", methods=["POST"])
+def predict():
+    data = request.get_json()
+    features = np.array([[
+        data["credit_score"],
+        data["loan_term"],
+        data["car_price"],
+        data["vehicle_age"],
+        data["down_payment_rate"]
+    ]])
+
+    # Predict APR and Default Risk
+    apr = apr_model.predict(features)[0]
+    risk = risk_model.predict_proba(features)[0][1]  # Probability of default
+
+    # --- Calculate monthly payment ---
+    car_price = float(data["car_price"])
+    down_payment_rate = float(data["down_payment_rate"])
+    loan_term = int(data["loan_term"])
+    
+    down_payment = car_price * down_payment_rate
+    loan_amount = car_price - down_payment
+    monthly_rate = (apr / 100) / 12
+
+    # Avoid division by zero if rate is 0%
+    if monthly_rate == 0:
+        monthly_payment = loan_amount / loan_term
+    else:
+        monthly_payment = loan_amount * (monthly_rate * (1 + monthly_rate)**loan_term) / ((1 + monthly_rate)**loan_term - 1)
+
+    response = {
+        "predicted_apr": round(apr, 2),
+        "default_risk_probability": round(risk, 3),
+        "monthly_payment": round(monthly_payment, 2),
+        "recommendation": "Increase down payment" if risk > 0.6 else "Good standing"
+    }
+
+    return jsonify(response)
+
 
 if __name__ == '__main__':
     app.run(debug=True)
