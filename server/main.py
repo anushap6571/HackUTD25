@@ -9,6 +9,7 @@ from downpayment import downpayment_routes
 
 import joblib
 import numpy as np
+import pandas as pd
 from signup import register_signup_routes # Signup routes
 from flask_cors import CORS  # Add this import
 
@@ -61,6 +62,7 @@ if missing_fields:
 cred = credentials.Certificate(firebase_cred_dict)
 firebase_admin.initialize_app(cred)
 print("✅ Firebase Admin SDK initialized successfully\n")
+print(f"🔍 Firebase Admin project_id: {firebase_admin.get_app().project_id}\n")
 
 # Initialize Firestore (Firebase Database)
 # Firestore is automatically initialized when Firebase Admin SDK is initialized
@@ -139,13 +141,21 @@ risk_model = joblib.load("risk_model.pkl")
 @app.route("/predict", methods=["POST"])
 def predict():
     data = request.get_json()
-    features = np.array([[
+    feature_names = [
+        "credit_score",
+        "loan_term",
+        "car_price",
+        "vehicle_age",
+        "down_payment_rate"
+    ]
+    features_array = np.array([[
         data["credit_score"],
         data["loan_term"],
         data["car_price"],
         data["vehicle_age"],
         data["down_payment_rate"]
     ]])
+    features = pd.DataFrame(features_array, columns=feature_names)
 
     # Predict APR and Default Risk
     apr = apr_model.predict(features)[0]

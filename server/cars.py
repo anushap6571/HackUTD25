@@ -97,6 +97,21 @@ def get_cars_routes(app):
                     'message': 'User credit score is required. Please update user profile first.'
                 }), 400
 
+            # Check if cars already exist for this user to avoid re-parsing CSV
+            cars_collection = db.collection('user_cars').document(uid).collection('cars')
+            existing_cars_docs = cars_collection.get()
+
+            if existing_cars_docs:
+                existing_cars = [doc.to_dict() for doc in existing_cars_docs]
+                existing_cars.sort(key=lambda x: x.get('Entry_price', 0), reverse=True)
+                reset_indices(uid)
+                return jsonify({
+                    'success': True,
+                    'message': f'Retrieved {len(existing_cars)} previously generated cars',
+                    'cars': existing_cars,
+                    'count': len(existing_cars)
+                }), 200
+
             # Read car data from CSV
             csv_path = os.path.join(os.path.dirname(__file__), 'Toyota_price_table.csv')
             cars_df = pd.read_csv(csv_path)

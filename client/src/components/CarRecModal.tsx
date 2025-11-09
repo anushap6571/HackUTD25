@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import api from '../config/api';
 
 interface CarRecModalProps {
   isOpen: boolean;
@@ -13,9 +15,31 @@ interface CarRecModalProps {
   };
 }
 
+interface CarData {
+  image?: string;
+  model: string;
+  year: number;
+  totalCost: number;
+  suggestedDownPayment: number;
+}
+
+interface UserMetrics {
+  creditScore?: number;
+  budget?: number;
+}
+
+interface PredictionState {
+  apr?: number;
+  defaultRiskPercent?: number;
+  monthlyPayment?: number;
+  recommendation?: string;
+}
+
+const userProfileCache: Record<string, UserMetrics> = {};
+
 export const CarRecModal = ({ isOpen, onClose, carData }: CarRecModalProps) => {
   // Default car data if not provided
-  const defaultCarData = {
+  const defaultCarData: CarData = {
     image: '/car-placeholder.jpg', // You can replace this with actual car image
     model: 'Toyota Corolla',
     year: 2026,
@@ -23,42 +47,198 @@ export const CarRecModal = ({ isOpen, onClose, carData }: CarRecModalProps) => {
     suggestedDownPayment: 4998,
   };
 
-  const car = carData || defaultCarData;
+  const { currentUser } = useAuth();
+  const car: CarData = carData || defaultCarData;
   const [loanTerm, setLoanTerm] = useState(50); // Value from 0-100, representing 10-60 months
   const [downPayment, setDownPayment] = useState(50); // Value from 0-100, representing $1000-$10,998
+  const [userMetrics, setUserMetrics] = useState<UserMetrics | null>(null);
+  const [prediction, setPrediction] = useState<PredictionState | null>(null);
+  const [predictionLoading, setPredictionLoading] = useState(false);
+  const [predictionError, setPredictionError] = useState<string | null>(null);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    if (!car || !isOpen) return;
+    const minDownPayment = 1000;
+    const maxDownPayment = 10998;
+    const suggested = car.suggestedDownPayment ?? defaultCarData.suggestedDownPayment;
+    const clampedSuggested = Math.min(Math.max(suggested, minDownPayment), maxDownPayment);
+    const normalized = (clampedSuggested - minDownPayment) / (maxDownPayment - minDownPayment);
+    setDownPayment(Math.round(normalized * 100));
+  }, [car?.model, car?.year, car?.totalCost, car?.suggestedDownPayment, isOpen]);
+
+  useEffect(() => {
+    if (!currentUser || !isOpen) {
+      setUserMetrics(null);
+      return;
+    }
+
+    const cachedMetrics = userProfileCache[currentUser.uid];
+    if (cachedMetrics) {
+      setUserMetrics(cachedMetrics);
+      return;
+    }
+
+    let cancelled = false;
+
+    const fetchUserMetrics = async () => {
+      try {
+        const response = await api.get(`/users/${currentUser.uid}`);
+        const userData = response?.user;
+
+        const creditScoreRaw = userData?.credit_score;
+        const budgetRaw = userData?.budget;
+
+        const normalizedMetrics: UserMetrics = {
+          creditScore: creditScoreRaw != null && !Number.isNaN(Number(creditScoreRaw))
+            ? Number(creditScoreRaw)
+            : undefined,
+          budget: budgetRaw != null && !Number.isNaN(Number(budgetRaw)) ? Number(budgetRaw) : undefined,
+        };
+
+        if (!cancelled) {
+          userProfileCache[currentUser.uid] = normalizedMetrics;
+          setUserMetrics(normalizedMetrics);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Failed to fetch user profile for car recommendation modal:', error);
+          setUserMetrics({});
+        }
+      }
+    };
+
+    fetchUserMetrics();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser, isOpen]);
 
   // Convert slider value (0-100) to loan term (10-60 months)
-  const loanTermMonths = Math.round(10 + (loanTerm / 100) * 50);
+  const loanTermMonths = useMemo(() => Math.round(10 + (loanTerm / 100) * 50), [loanTerm]);
   
   // Convert slider value (0-100) to down payment ($1000-$10,998)
-  const downPaymentAmount = Math.round(1000 + (downPayment / 100) * 9998);
-  
-  // Calculate monthly payment (simplified calculation)
-  const principal = car.totalCost - downPaymentAmount;
-  const monthlyRate = 0.005; // 6% APR / 12 months (simplified)
-  const numPayments = loanTermMonths;
-  const monthlyPayment = principal > 0 && numPayments > 0
-    ? Math.round((principal * monthlyRate * Math.pow(1 + monthlyRate, numPayments)) / (Math.pow(1 + monthlyRate, numPayments) - 1))
-    : 0;
+  const downPaymentAmount = useMemo(() => Math.round(1000 + (downPayment / 100) * 9998), [downPayment]);
+  const carPrice = useMemo(() => Number.isFinite(car.totalCost) ? Number(car.totalCost) : 0, [car.totalCost]);
+  const downPaymentRate = useMemo(() => {
+    if (!carPrice || carPrice <= 0) return 0;
+    const rate = downPaymentAmount / carPrice;
+    if (!Number.isFinite(rate)) return 0;
+    return Math.min(Math.max(rate, 0), 1);
+  }, [downPaymentAmount, carPrice]);
+  const vehicleAge = useMemo(() => {
+    if (!car.year) return 0;
+    const currentYear = 2025;
+    return Math.max(0, currentYear - car.year);
+  }, [car.year]);
 
-  // Calculate default risk (placeholder calculation)
-  const defaultRisk = Math.round((downPaymentAmount / car.totalCost) * 100);
+  const sanitizedCreditScore = userMetrics?.creditScore != null && Number.isFinite(userMetrics.creditScore)
+    ? Number(userMetrics.creditScore)
+    : undefined;
 
-  // Calculate Predicted APR based on down payment percentage and loan term
-  // Higher down payment and shorter term = lower APR
-  const downPaymentPercentage = (downPaymentAmount / car.totalCost) * 100;
-  // Base APR calculation: lower with higher down payment and shorter term
-  const baseAPR = 8.0; // Base 8% APR
-  const downPaymentDiscount = Math.max(0, (downPaymentPercentage - 20) * 0.1); // Up to 2% discount for high down payment
-  const termDiscount = Math.max(0, (60 - loanTermMonths) * 0.02); // Up to 1% discount for shorter term
-  const predictedAPR = Math.max(3.0, Math.min(15.0, baseAPR - downPaymentDiscount - termDiscount));
-  const predictedAPRFormatted = predictedAPR.toFixed(1);
+  const predictionUnavailableMessage = useMemo(() => {
+    if (!currentUser) {
+      return 'Sign in to see personalized financing predictions.';
+    }
+    if (currentUser && sanitizedCreditScore == null) {
+      return 'Add your credit score to your profile to see personalized financing predictions.';
+    }
+    return null;
+  }, [currentUser, sanitizedCreditScore]);
+
+  useEffect(() => {
+    if (
+      !isOpen ||
+      !currentUser ||
+      sanitizedCreditScore == null ||
+      !carPrice ||
+      carPrice <= 0 ||
+      loanTermMonths <= 0
+    ) {
+      setPrediction(null);
+      setPredictionLoading(false);
+      setPredictionError(null);
+      return;
+    }
+
+    let cancelled = false;
+    setPredictionLoading(true);
+    setPredictionError(null);
+
+    const timeoutId = setTimeout(async () => {
+      try {
+        const payload = {
+          credit_score: sanitizedCreditScore,
+          loan_term: loanTermMonths,
+          car_price: carPrice,
+          vehicle_age: vehicleAge,
+          down_payment_rate: downPaymentRate,
+        };
+
+        const result = await api.post('/predict', payload);
+        if (cancelled) return;
+
+        const aprRaw = result?.predicted_apr;
+        const defaultRiskRaw = 1 - result?.default_risk_probability;
+        const monthlyPaymentRaw = result?.monthly_payment;
+        const recommendationRaw = result?.recommendation;
+
+        const normalizedPrediction: PredictionState = {
+          apr: aprRaw != null && !Number.isNaN(Number(aprRaw)) ? Number(aprRaw) : undefined,
+          defaultRiskPercent:
+            defaultRiskRaw != null && !Number.isNaN(Number(defaultRiskRaw))
+              ? Math.round(Number(defaultRiskRaw) * 100)
+              : undefined,
+          monthlyPayment:
+            monthlyPaymentRaw != null && !Number.isNaN(Number(monthlyPaymentRaw))
+              ? Number(monthlyPaymentRaw)
+              : undefined,
+          recommendation: typeof recommendationRaw === 'string' ? recommendationRaw : undefined,
+        };
+
+        setPrediction(normalizedPrediction);
+      } catch (error: any) {
+        if (!cancelled) {
+          console.error('Failed to fetch car financing prediction (modal):', error);
+          setPrediction(null);
+          setPredictionError(error?.message || 'Failed to fetch financing prediction.');
+        }
+      } finally {
+        if (!cancelled) {
+          setPredictionLoading(false);
+        }
+      }
+    }, 300);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
+  }, [isOpen, currentUser, sanitizedCreditScore, carPrice, loanTermMonths, downPaymentRate, vehicleAge]);
+
+  const aprDisplay = predictionLoading
+    ? '...'
+    : prediction?.apr != null
+      ? `${prediction.apr.toFixed(2)}%`
+      : '--';
+
+  const defaultRiskDisplay = predictionLoading
+    ? '...'
+    : prediction?.defaultRiskPercent != null
+      ? `${prediction.defaultRiskPercent}%`
+      : '--';
+
+  const monthlyPaymentDisplay = predictionLoading
+    ? '...'
+    : prediction?.monthlyPayment != null
+      ? `$${Number(prediction.monthlyPayment).toLocaleString()}`
+      : '--';
 
   const formatCurrency = (value: number) => {
     return `$${value.toLocaleString()}`;
   };
+
+  if (!isOpen) return null;
 
   // Tooltip component for terms
   const TermTooltip = ({ term, definition, children }: { term: string; definition: string; children: ReactNode }) => {
@@ -256,7 +436,7 @@ export const CarRecModal = ({ isOpen, onClose, carData }: CarRecModalProps) => {
           {/* Predicted APR */}
           <div className="text-center">
             <div className="text-lg font-semibold text-text-dark mb-1">
-              {predictedAPRFormatted}%
+              {aprDisplay}
             </div>
             <div className="text-xs text-text-secondary">
               <TermTooltip 
@@ -271,7 +451,7 @@ export const CarRecModal = ({ isOpen, onClose, carData }: CarRecModalProps) => {
           {/* Default Risk */}
           <div className="text-center">
             <div className="text-lg font-semibold text-text-dark mb-1">
-              {defaultRisk}%
+              {defaultRiskDisplay}
             </div>
             <div className="text-xs text-text-secondary">
               <TermTooltip 
@@ -286,7 +466,7 @@ export const CarRecModal = ({ isOpen, onClose, carData }: CarRecModalProps) => {
           {/* Monthly Payment */}
           <div className="text-center">
             <div className="text-lg font-semibold text-text-dark mb-1">
-              {formatCurrency(monthlyPayment)}
+              {monthlyPaymentDisplay}
             </div>
             <div className="text-xs text-text-secondary">
               <TermTooltip 
@@ -298,6 +478,24 @@ export const CarRecModal = ({ isOpen, onClose, carData }: CarRecModalProps) => {
             </div>
           </div>
         </div>
+
+        {(prediction?.recommendation && !predictionLoading) && (
+          <div className="mt-4 text-xs text-text-secondary text-center">
+            Recommendation: {prediction.recommendation}
+          </div>
+        )}
+
+        {predictionUnavailableMessage && (
+          <div className="mt-4 text-xs text-text-secondary text-center">
+            {predictionUnavailableMessage}
+          </div>
+        )}
+
+        {predictionError && !predictionLoading && (
+          <div className="mt-4 text-xs text-red-600 text-center">
+            {predictionError}
+          </div>
+        )}
       </div>
     </div>
   );

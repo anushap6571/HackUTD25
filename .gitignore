@@ -12,3 +12,7 @@ FIREBASE_SETUP.md
 __pycache__/
 
 /client/.env
+
+ .vscode/
+
+ client/.env

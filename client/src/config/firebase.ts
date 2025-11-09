@@ -6,17 +6,18 @@ import { getAuth } from 'firebase/auth';
 // Firebase Client API keys are meant to be public (they're exposed in the browser anyway)
 // Security is handled by Firebase Security Rules and Authentication, not by hiding the API key
 const firebaseConfig = {
-  apiKey: "AIzaSyBLuQlsRACQWdRuymY0beqPce-vye6Axjk",
-  authDomain: "hackutd25.firebaseapp.com",
-  projectId: "hackutd25",
-  storageBucket: "hackutd25.firebasestorage.app",
-  messagingSenderId: "881854770607",
-  appId: "1:881854770607:web:2d1d64cf2ab491e85e935a",
-  measurementId: "G-SBEJN8Q9E0"
+  apiKey: "AIzaSyDgUt_pi4-_DCLnGyey6jSYICIESY9hsBg",
+  authDomain: "hack25.firebaseapp.com",
+  projectId: "hack25-f1f6a",
+  storageBucket: "hack25.firebasestorage.app",
+  messagingSenderId: "844445990011",
+  appId: "1:844445990011:web:b634f9ca816e96672ef6de",
+  measurementId: "G-JBS9YRKWSM"
 };
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
+console.log('irebase client project ID:', app.options.projectId);
 
 // Initialize Firebase Authentication and get a reference to the service
 export const auth = getAuth(app);

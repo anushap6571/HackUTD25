@@ -53,8 +53,13 @@ y_reg = data["apr"]
 # Classification target: Default risk
 y_cls = data["default_label"]
 
-X_train, X_test, y_reg_train, y_reg_test = train_test_split(X, y_reg, test_size=0.2, random_state=42)
-_, _, y_cls_train, y_cls_test = train_test_split(X, y_cls, test_size=0.2, random_state=42)
+X_train, X_test, y_reg_train, y_reg_test, y_cls_train, y_cls_test = train_test_split(
+    X,
+    y_reg,
+    y_cls,
+    test_size=0.2,
+    random_state=42,
+)
 
 # -----------------------------
 # 3. Train Models
