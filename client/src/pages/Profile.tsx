@@ -4,6 +4,7 @@ import { Header } from '../components/Header';
 import { Footer } from '../components/Footer';
 import { Sidebar } from '../components/Sidebar';
 import { CarRecCard } from '../components/CarRecCard';
+import { OnboardingModal } from '../components/OnboardingModal';
 
 // Helper function to get car ID (same as in CarRecCard)
 const getCarId = (car: { model: string; year: number; totalCost: number }) => {
@@ -13,6 +14,7 @@ const getCarId = (car: { model: string; year: number; totalCost: number }) => {
 export const Profile = () => {
   const { currentUser } = useAuth();
   const [savedVehicles, setSavedVehicles] = useState<any[]>([]);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
     if (currentUser) {
@@ -55,6 +57,31 @@ export const Profile = () => {
     };
   }, [currentUser]);
 
+  // Listen for custom event to show onboarding modal from header
+  useEffect(() => {
+    const handleShowModal = () => {
+      if (currentUser) {
+        setShowOnboarding(true);
+      }
+    };
+
+    window.addEventListener('showOnboardingModal', handleShowModal);
+    return () => {
+      window.removeEventListener('showOnboardingModal', handleShowModal);
+    };
+  }, [currentUser]);
+
+  const handleOnboardingComplete = (creditScore: number, budget: number) => {
+    if (currentUser) {
+      localStorage.setItem(`onboarding_${currentUser.uid}`, 'true');
+      localStorage.setItem(`user_preferences_${currentUser.uid}`, JSON.stringify({
+        creditScore,
+        budget,
+      }));
+      setShowOnboarding(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-background-light">
       <Header />
@@ -70,10 +97,6 @@ export const Profile = () => {
               <div>
                 <label className="block text-sm font-medium text-text-dark">Email</label>
                 <p className="mt-1 text-text-dark">{currentUser?.email}</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-text-dark">User ID</label>
-                <p className="mt-1 text-text-secondary text-sm">{currentUser?.uid}</p>
               </div>
             </div>
           </div>
@@ -93,6 +116,13 @@ export const Profile = () => {
           </div>
         </main>
       </div>
+      <Footer />
+      {/* Onboarding Modal */}
+      <OnboardingModal
+        isOpen={showOnboarding}
+        onClose={() => setShowOnboarding(false)}
+        onComplete={handleOnboardingComplete}
+      />
     </div>
   );
 };

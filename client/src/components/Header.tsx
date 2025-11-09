@@ -56,6 +56,10 @@ export const Header = () => {
                 </Link>
                 <Link
                   to="/profile"
+                  onClick={(e) => {
+                    // Dispatch custom event to trigger onboarding modal
+                    window.dispatchEvent(new CustomEvent('showOnboardingModal'));
+                  }}
                   className={`text-sm font-medium transition ${
                     isActive('/profile')
                       ? 'text-text-dark'

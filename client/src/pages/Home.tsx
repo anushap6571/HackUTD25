@@ -99,14 +99,35 @@ export const Home = () => {
   // Mock data for dropdowns - only Toyota models
   const carModels = ['Camry', 'Corolla', 'RAV4', 'Highlander', '4Runner', 'Prius', 'Tacoma', 'Sienna', 'Tundra', 'Sequoia'];
   const years = ['2024', '2023', '2022', '2021', '2020', '2019'];
-  useEffect(() => {
+
+
+  // Handle click on home screen to open onboarding modal
+  const handleHomeClick = (e: React.MouseEvent) => {
+    // Don't open modal if clicking on interactive elements
+    const target = e.target as HTMLElement;
+    if (
+      target.tagName === 'BUTTON' ||
+      target.tagName === 'INPUT' ||
+      target.tagName === 'SELECT' ||
+      target.tagName === 'A' ||
+      target.closest('button') ||
+      target.closest('input') ||
+      target.closest('select') ||
+      target.closest('a') ||
+      target.closest('form')
+    ) {
+      return;
+    }
+
     if (currentUser) {
       const hasCompletedOnboarding = localStorage.getItem(`onboarding_${currentUser.uid}`);
-      if (!hasCompletedOnboarding) {
+      if (!hasCompletedOnboarding && !showOnboarding) {
         setShowOnboarding(true);
       }
     }
-  }, [currentUser]);
+  };
+
+
   const handleOnboardingComplete = (creditScore: number, budget: number) => {
     if (currentUser) {
       localStorage.setItem(`onboarding_${currentUser.uid}`, 'true');
@@ -117,6 +138,7 @@ export const Home = () => {
       setShowOnboarding(false);
     }
   };
+  
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     console.log('Search:', { carModel, year });
@@ -140,6 +162,20 @@ export const Home = () => {
 
     return () => clearInterval(interval);
   }, [carouselImages.length]);
+
+  // Listen for custom event to show onboarding modal from header
+  useEffect(() => {
+    const handleShowModal = () => {
+      if (currentUser) {
+        setShowOnboarding(true);
+      }
+    };
+
+    window.addEventListener('showOnboardingModal', handleShowModal);
+    return () => {
+      window.removeEventListener('showOnboardingModal', handleShowModal);
+    };
+  }, [currentUser]);
   return (
     <div className="min-h-screen flex flex-col bg-background-light">
       {/* Header */}
@@ -148,7 +184,10 @@ export const Home = () => {
         {/* Sidebar - Keep as is, do not modify */}
         <Sidebar />
         {/* Main Content Area */}
-        <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-4 w-full overflow-auto">
+        <main 
+          className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-4 w-full overflow-auto cursor-pointer"
+          onClick={handleHomeClick}
+        >
           {/* Top Search Section */}
           <div className="bg-background-light px-4 sm:px-8 md:px-16">
             <div className="flex flex-col md:flex-row items-start md:items-center pt-4 justify-between gap-4 md:gap-0">

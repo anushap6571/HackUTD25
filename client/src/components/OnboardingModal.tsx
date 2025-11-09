@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import api from '../config/api';
 
 interface OnboardingModalProps {
   isOpen: boolean;
@@ -7,14 +9,15 @@ interface OnboardingModalProps {
 }
 
 export const OnboardingModal = ({ isOpen, onClose, onComplete }: OnboardingModalProps) => {
+  const { currentUser } = useAuth();
   // Credit score range: 300-850
   const minCreditScore = 300;
   const maxCreditScore = 850;
-  const defaultCreditScore = 575; // Midpoint
   
   // Slider value (0-100) that maps to credit score (300-850)
   const [creditScoreSlider, setCreditScoreSlider] = useState(50); // 50% = 575
   const [budget, setBudget] = useState(100000);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen) return null;
 
@@ -24,9 +27,34 @@ export const OnboardingModal = ({ isOpen, onClose, onComplete }: OnboardingModal
   // Convert credit score (300-850) to slider percentage for display
   const creditScorePercentage = ((creditScore - minCreditScore) / (maxCreditScore - minCreditScore)) * 100;
 
-  const handleSubmit = () => {
-    onComplete(creditScore, budget);
-    onClose();
+  const handleSubmit = async () => {
+    if (!currentUser) {
+      console.error('No user logged in');
+      // Still call onComplete for localStorage fallback
+      onComplete(creditScore, budget);
+      onClose();
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      // Send onboarding data to backend API
+      await api.post(`/users/${currentUser.uid}`, {
+        credit_score: creditScore,
+        budget: budget,
+      });
+      
+      // Also store in localStorage as fallback
+      onComplete(creditScore, budget);
+      onClose();
+    } catch (error) {
+      console.error('Failed to save onboarding data to backend:', error);
+      // Still save to localStorage as fallback
+      onComplete(creditScore, budget);
+      onClose();
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const formatBudget = (value: number) => {
@@ -162,9 +190,10 @@ export const OnboardingModal = ({ isOpen, onClose, onComplete }: OnboardingModal
         {/* Submit Button */}
         <button
           onClick={handleSubmit}
-          className="w-full bg-primary text-text-light py-3 rounded-lg font-semibold hover:opacity-90 transition"
+          disabled={isSubmitting}
+          className="w-full bg-primary text-text-light py-3 rounded-lg font-semibold hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Start using CarCents
+          {isSubmitting ? 'Saving...' : 'Start using CarCents'}
         </button>
       </div>
     </div>

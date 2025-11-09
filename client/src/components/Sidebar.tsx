@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Home, BarChart3, User, GalleryHorizontal, Rows3, MapIcon} from 'lucide-react';
+import { Home, BarChart3, User, GalleryHorizontal, LayoutGrid, MapIcon} from 'lucide-react';
 
 export const Sidebar = () => {
   const location = useLocation();
@@ -46,7 +46,7 @@ export const Sidebar = () => {
         <Link
           to="/map"
           className={`${iconClass(isActive('/map'))} no-underline`}>
-            <MapIcon className="w-6 h-6" />
+            <LayoutGrid className="w-6 h-6" />
           </Link>
 
         {/* Chart/Graph Icon */}

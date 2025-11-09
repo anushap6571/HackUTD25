@@ -33,6 +33,8 @@ export const Comparison = () => {
   const [rightCardIndex, setRightCardIndex] = useState(1);
   const [isAnimating, setIsAnimating] = useState(false);
   const [slideDirection, setSlideDirection] = useState<'left' | 'right' | null>(null);
+  const [slidingOutIndex, setSlidingOutIndex] = useState<{left: number | null, right: number | null}>({left: null, right: null});
+  const [shouldSlideOut, setShouldSlideOut] = useState(false);
   const [selectedCar, setSelectedCar] = useState<typeof carData[0] | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [chatPrompt, setChatPrompt] = useState('');
@@ -41,13 +43,29 @@ export const Comparison = () => {
     if (isAnimating) return;
     
     setIsAnimating(true);
+    setShouldSlideOut(false);
+    
+    // Store the old index that's sliding out
+    setSlidingOutIndex(prev => ({ ...prev, left: leftCardIndex }));
     setSlideDirection('left');
     
+    // Update the index so new card appears
+    const newIndex = leftCardIndex > 0 ? leftCardIndex - 1 : carData.length - 1;
+    setLeftCardIndex(newIndex);
+    
+    // Trigger slide-out animation after card renders
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setShouldSlideOut(true);
+      });
+    });
+    
+    // After animation completes, reset state
     setTimeout(() => {
-      // Update left card to previous, right card stays the same
-      setLeftCardIndex((prev) => (prev > 0 ? prev - 1 : carData.length - 1));
       setIsAnimating(false);
       setSlideDirection(null);
+      setSlidingOutIndex(prev => ({ ...prev, left: null }));
+      setShouldSlideOut(false);
     }, 300); // Match animation duration
   };
 
@@ -55,27 +73,32 @@ export const Comparison = () => {
     if (isAnimating) return;
     
     setIsAnimating(true);
+    setShouldSlideOut(false);
+    
+    // Store the old index that's sliding out
+    setSlidingOutIndex(prev => ({ ...prev, right: rightCardIndex }));
     setSlideDirection('right');
     
+    // Update the index so new card appears
+    const newIndex = rightCardIndex < carData.length - 1 ? rightCardIndex + 1 : 0;
+    setRightCardIndex(newIndex);
+    
+    // Trigger slide-out animation after card renders
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setShouldSlideOut(true);
+      });
+    });
+    
+    // After animation completes, reset state
     setTimeout(() => {
-      // Update right card to next, left card stays the same
-      setRightCardIndex((prev) => (prev < carData.length - 1 ? prev + 1 : 0));
       setIsAnimating(false);
       setSlideDirection(null);
+      setSlidingOutIndex(prev => ({ ...prev, right: null }));
+      setShouldSlideOut(false);
     }, 300); // Match animation duration
   };
   
-  // Calculate positions for animation
-  const getLeftCardTransform = () => {
-    if (slideDirection === 'left') return '-translate-x-full';
-    return '';
-  };
-
-  const getRightCardTransform = () => {
-    if (slideDirection === 'right') return 'translate-x-full';
-    return '';
-  };
-
   // Get the new card index that will appear
   const getNewCardIndex = () => {
     if (slideDirection === 'left') {
@@ -163,21 +186,44 @@ export const Comparison = () => {
           <div className="grid grid-cols-2 gap-4 mb-3 relative">
             {/* Left Card Container - Fixed position */}
             <div className="relative overflow-hidden">
-              {/* Existing Left Card */}
-              <div
-                className={`transition-transform duration-300 ease-in-out ${getLeftCardTransform()} cursor-pointer`}
-                onClick={() => handleCardClick(carData[leftCardIndex])}
-              >
-                <CarRecCard 
-                  key={`left-${leftCardIndex}-${slideDirection}`}
-                  carData={carData[leftCardIndex]} 
-                />
-              </div>
+              {/* Old Card - Slides out to the left when animating */}
+              {slideDirection === 'left' && slidingOutIndex.left !== null && (
+                <div
+                  className="transition-transform duration-300 ease-in-out cursor-pointer"
+                  style={{
+                    transform: shouldSlideOut && slideDirection === 'left' ? 'translateX(-100%)' : 'translateX(0)'
+                  }}
+                  onClick={() => handleCardClick(carData[slidingOutIndex.left!])}
+                >
+                  <CarRecCard 
+                    key={`left-sliding-${slidingOutIndex.left}`}
+                    carData={carData[slidingOutIndex.left]} 
+                  />
+                </div>
+              )}
+              
+              {/* Current Left Card - Shows when not animating */}
+              {slideDirection !== 'left' && (
+                <div
+                  className="cursor-pointer"
+                  onClick={() => handleCardClick(carData[leftCardIndex])}
+                >
+                  <CarRecCard 
+                    key={`left-${leftCardIndex}`}
+                    carData={carData[leftCardIndex]} 
+                  />
+                </div>
+              )}
 
-              {/* New Card - Slides in from right when left arrow clicked */}
+              {/* New Card - Fades in to original spot when left arrow clicked */}
               {slideDirection === 'left' && newCardIndex !== null && (
                 <div
-                  className="absolute left-0 top-0 w-full animate-slideInFromRight cursor-pointer"
+                  className="absolute left-0 top-0 w-full cursor-pointer"
+                  style={{ 
+                    opacity: 0,
+                    animation: 'fadeIn 0.3s ease-in-out forwards',
+                    transform: 'translateX(0)'
+                  }}
                   onClick={() => handleCardClick(carData[newCardIndex])}
                 >
                   <CarRecCard 
@@ -190,21 +236,44 @@ export const Comparison = () => {
 
             {/* Right Card Container - Fixed position */}
             <div className="relative overflow-hidden">
-              {/* Existing Right Card */}
-              <div
-                className={`transition-transform duration-300 ease-in-out ${getRightCardTransform()} cursor-pointer`}
-                onClick={() => handleCardClick(carData[rightCardIndex])}
-              >
-                <CarRecCard 
-                  key={`right-${rightCardIndex}-${slideDirection}`}
-                  carData={carData[rightCardIndex]} 
-                />
-              </div>
+              {/* Old Card - Slides out to the right when animating */}
+              {slideDirection === 'right' && slidingOutIndex.right !== null && (
+                <div
+                  className="transition-transform duration-300 ease-in-out cursor-pointer"
+                  style={{
+                    transform: shouldSlideOut && slideDirection === 'right' ? 'translateX(100%)' : 'translateX(0)'
+                  }}
+                  onClick={() => handleCardClick(carData[slidingOutIndex.right!])}
+                >
+                  <CarRecCard 
+                    key={`right-sliding-${slidingOutIndex.right}`}
+                    carData={carData[slidingOutIndex.right]} 
+                  />
+                </div>
+              )}
+              
+              {/* Current Right Card - Shows when not animating */}
+              {slideDirection !== 'right' && (
+                <div
+                  className="cursor-pointer"
+                  onClick={() => handleCardClick(carData[rightCardIndex])}
+                >
+                  <CarRecCard 
+                    key={`right-${rightCardIndex}`}
+                    carData={carData[rightCardIndex]} 
+                  />
+                </div>
+              )}
 
-              {/* New Card - Slides in from left when right arrow clicked */}
+              {/* New Card - Fades in to original spot when right arrow clicked */}
               {slideDirection === 'right' && newCardIndex !== null && (
                 <div
-                  className="absolute right-0 top-0 w-full animate-slideInFromLeft cursor-pointer"
+                  className="absolute right-0 top-0 w-full cursor-pointer"
+                  style={{ 
+                    opacity: 0,
+                    animation: 'fadeIn 0.3s ease-in-out forwards',
+                    transform: 'translateX(0)'
+                  }}
                   onClick={() => handleCardClick(carData[newCardIndex])}
                 >
                   <CarRecCard 
