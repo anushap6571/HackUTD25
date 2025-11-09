@@ -84,18 +84,36 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
+    console.log('🔍 AuthProvider: Initializing auth state listener...');
+    
     try {
-      const unsubscribe = onAuthStateChanged(auth, (user) => {
-        setCurrentUser(user);
+      // Set a timeout to ensure loading doesn't hang forever
+      const timeoutId = setTimeout(() => {
+        console.warn('⚠️ Auth state change taking too long (>5s), setting loading to false');
         setLoading(false);
-      }, (error) => {
-        console.error('Auth state change error:', error);
-        setLoading(false);
-      });
+      }, 5000); // 5 second timeout
 
-      return unsubscribe;
+      const unsubscribe = onAuthStateChanged(
+        auth, 
+        (user) => {
+          clearTimeout(timeoutId);
+          console.log('✅ Auth state changed:', user ? `User logged in (${user.email})` : 'User logged out');
+          setCurrentUser(user);
+          setLoading(false);
+        }, 
+        (error) => {
+          clearTimeout(timeoutId);
+          console.error('❌ Auth state change error:', error);
+          setLoading(false);
+        }
+      );
+
+      return () => {
+        clearTimeout(timeoutId);
+        unsubscribe();
+      };
     } catch (error) {
-      console.error('Firebase initialization error:', error);
+      console.error('❌ Firebase initialization error:', error);
       setLoading(false);
     }
   }, []);
