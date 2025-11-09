@@ -4,6 +4,7 @@ import { Sidebar } from '../components/Sidebar';
 import { OnboardingModal } from '../components/OnboardingModal';
 import { CarCard } from '../components/CarCard';
 import { Header } from '../components/Header';
+import { ChevronLeft, ChevronRight, Play, Info } from 'lucide-react';
 interface Car {
   id: string;
   make: string;
@@ -19,6 +20,15 @@ export const Home = () => {
   // Search form state
   const [carModel, setCarModel] = useState('');
   const [year, setYear] = useState('');
+  // Carousel state
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [isInfoHovered, setIsInfoHovered] = useState(false);
+  const carouselImages = [
+    '/home/home-1.png',
+    '/home/home0.png',
+    '/home/home1.png',
+    '/home/home.png',
+  ];
   // Mock car data - all Toyota cars
   const mockCars: Car[] = [
     {
@@ -112,6 +122,24 @@ export const Home = () => {
     console.log('Search:', { carModel, year });
     // TODO: Implement actual search functionality
   };
+
+  // Carousel navigation
+  const nextSlide = () => {
+    setCurrentSlide((prev) => (prev + 1) % carouselImages.length);
+  };
+
+  const prevSlide = () => {
+    setCurrentSlide((prev) => (prev - 1 + carouselImages.length) % carouselImages.length);
+  };
+
+  // Auto-play carousel
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % carouselImages.length);
+    }, 5000); // Change slide every 5 seconds
+
+    return () => clearInterval(interval);
+  }, [carouselImages.length]);
   return (
     <div className="min-h-screen flex flex-col bg-background-light">
       {/* Header */}
@@ -120,10 +148,10 @@ export const Home = () => {
         {/* Sidebar - Keep as is, do not modify */}
         <Sidebar />
         {/* Main Content Area */}
-        <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full overflow-auto">
+        <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-4 w-full overflow-auto">
           {/* Top Search Section */}
-          <div className="bg-background-light px-4 sm:px-8 md:px-16 py-8">
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 md:gap-0">
+          <div className="bg-background-light px-4 sm:px-8 md:px-16">
+            <div className="flex flex-col md:flex-row items-start md:items-center pt-4 justify-between gap-4 md:gap-0">
               {/* Left side text */}
               <p className="text-lg font-medium text-[#333333]">
                 Looking for a specific car?
@@ -169,29 +197,103 @@ export const Home = () => {
               </form>
             </div>
           </div>
-          {/* Hero Video Section */}
+          {/* Carousel Section */}
           <div className="px-4 sm:px-8 md:px-16 mt-8">
-            <div className="max-w-[1200px] mx-auto">
-              {/* Video Container */}
-              <div
-                className="relative w-full rounded-2xl overflow-hidden shadow-lg"
-                style={{ aspectRatio: '16/9' }}
-              >
-                <video
-                  autoPlay
-                  muted
-                  loop
-                  playsInline
-                  className="w-full h-full object-cover"
-                  aria-label="Car dealership promotional video"
+            <div className="relative w-full rounded-2xl overflow-hidden shadow-lg">
+              {/* Carousel Container */}
+              <div className="relative aspect-[16/9] bg-container-secondary">
+                {/* Images */}
+                <div className="relative w-full h-full">
+                  {carouselImages.map((image, index) => (
+                    <div
+                      key={index}
+                      className={`absolute inset-0 transition-opacity duration-500 ${
+                        index === currentSlide ? 'opacity-100' : 'opacity-0'
+                      }`}
+                    >
+                      <img
+                        src={image}
+                        alt={`Carousel image ${index + 1}`}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                {/* Navigation Arrows */}
+                <button
+                  onClick={prevSlide}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-container-primary/80 hover:bg-container-primary rounded-full flex items-center justify-center transition-all shadow-lg z-10"
+                  aria-label="Previous slide"
                 >
-                  {/* <source src="/videos/car-commercial.mp4" type="video/mp4" /> */}
-                  {/* <source src="/videos/car-commercial.webm" type="video/webm" /> */}
-                  Your browser does not support the video tag.
-                </video>
+                  <ChevronLeft className="w-6 h-6 text-text-dark" />
+                </button>
+                <button
+                  onClick={nextSlide}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-container-primary/80 hover:bg-container-primary rounded-full flex items-center justify-center transition-all shadow-lg z-10"
+                  aria-label="Next slide"
+                >
+                  <ChevronRight className="w-6 h-6 text-text-dark" />
+                </button>
+
+                {/* Dots Indicator */}
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-10">
+                  {carouselImages.map((_, index) => (
+                    <button
+                      key={index}
+                      onClick={() => setCurrentSlide(index)}
+                      className={`w-2 h-2 rounded-full transition-all ${
+                        index === currentSlide
+                          ? 'bg-primary w-8'
+                          : 'bg-container-primary/50 hover:bg-container-primary'
+                      }`}
+                      aria-label={`Go to slide ${index + 1}`}
+                    />
+                  ))}
+                </div>
+
+                {/* Bottom Corner Icons */}
+                <div className="absolute bottom-4 right-4 flex gap-3 z-10">
+                  {/* Video Icon */}
+                  <a
+                    href="https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-10 h-10 bg-container-primary/80 hover:bg-container-primary rounded-full flex items-center justify-center transition-all shadow-lg group"
+                    aria-label="Watch video"
+                  >
+                    <Play className="w-5 h-5 text-text-dark group-hover:text-primary transition-colors" fill="currentColor" />
+                  </a>
+
+                  {/* Info Icon - Expands on hover */}
+                  <div
+                    className="relative"
+                    onMouseEnter={() => setIsInfoHovered(true)}
+                    onMouseLeave={() => setIsInfoHovered(false)}
+                  >
+                    <button
+                      className="w-10 h-10 bg-container-primary/80 hover:bg-container-primary rounded-full flex items-center justify-center transition-all shadow-lg group"
+                      aria-label="More information"
+                    >
+                      <Info className="w-5 h-5 text-text-dark group-hover:text-primary transition-colors" />
+                    </button>
+                    {/* Expanded Name on Hover */}
+                    <div
+                      className={`absolute bottom-full right-0 mb-2 px-3 py-2 bg-text-dark text-text-light text-sm rounded-lg whitespace-nowrap transition-all duration-200 shadow-lg ${
+                        isInfoHovered ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none'
+                      }`}
+                    >
+                      CarCents
+                      <div className="absolute top-full right-4 -mt-1">
+                        <div className="border-4 border-transparent border-t-text-dark"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
+
           {/* Recommended Section */}
           <div className="px-4 sm:px-8 md:px-16 mt-16 pb-16">
             <h2 className="text-3xl font-bold text-[#1F2937] mb-8">
