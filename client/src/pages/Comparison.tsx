@@ -1,9 +1,11 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Header } from '../components/Header';
 import { Sidebar } from '../components/Sidebar';
 import { CarRecCard } from '../components/CarRecCard';
 import { CarRecModal } from '../components/CarRecModal';
-import { ChevronLeft, ChevronRight, Send } from 'lucide-react';
+import { OnboardingModal } from '../components/OnboardingModal';
+import { ChatBot } from '../components/ChatBot';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../config/api';
 
@@ -41,11 +43,13 @@ export const Comparison = () => {
   const [rightCardIndex, setRightCardIndex] = useState<number | null>(null);
   const [selectedCar, setSelectedCar] = useState<CarCardData | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [chatPrompt, setChatPrompt] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isAdvancing, setIsAdvancing] = useState<{ left: boolean; right: boolean }>({ left: false, right: false });
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [isChatExpanded, setIsChatExpanded] = useState(false);
+  const [swipingCard, setSwipingCard] = useState<{ side: 'left' | 'right'; direction: 'left' | 'right' } | null>(null);
 
   const mapBackendCar = (car: BackendCar): CarCardData => {
     const entryPrice = Number(car.Entry_price ?? 0);
@@ -78,7 +82,9 @@ export const Comparison = () => {
         if (!profile?.budget || !profile?.credit_score) {
           setUserProfile(profile || null);
           setCars([]);
-          setError('Please complete your profile with a budget and credit score to view car recommendations.');
+          setError(null); // Don't show error, show modal instead
+          setShowOnboarding(true); // Show onboarding modal
+          setLoading(false);
           return;
         }
 
@@ -114,19 +120,27 @@ export const Comparison = () => {
     fetchComparisonData();
   }, [currentUser]);
 
-  const handleAdvance = async (side: 'left' | 'right') => {
+  const handleAdvance = useCallback(async (side: 'left' | 'right') => {
     if (!currentUser || isAdvancing[side]) {
       return;
     }
 
+    // Start swipe animation
+    // Left card swipes left, right card swipes right
+    setSwipingCard({ side, direction: side === 'left' ? 'left' : 'right' });
     setIsAdvancing((prev) => ({ ...prev, [side]: true }));
     setError(null);
+
+    // Wait for animation to complete before fetching new card
+    await new Promise(resolve => setTimeout(resolve, 300));
 
     try {
       const response = await api.get(`/cars/${currentUser.uid}/next?side=${side}`);
 
       if (response?.error) {
         setError(response.message || response.error || 'Reached the end of recommendations.');
+        setSwipingCard(null);
+        setIsAdvancing((prev) => ({ ...prev, [side]: false }));
         return;
       }
 
@@ -160,30 +174,77 @@ export const Comparison = () => {
           setRightCardIndex(newIndex);
         }
       }
+
+      // Clear swipe animation after card is replaced
+      setSwipingCard(null);
     } catch (err: any) {
       const message = err?.message || 'Failed to advance to the next car.';
       setError(message);
+      setSwipingCard(null);
     } finally {
       setIsAdvancing((prev) => ({ ...prev, [side]: false }));
     }
-  };
+  }, [currentUser, isAdvancing]);
 
   const handleCardClick = (car: CarCardData | null) => {
-    // if (!car) return;
-    // setSelectedCar(car);
-    // setIsModalOpen(true);
+    if (!car) return;
+    setSelectedCar(car);
+    setIsModalOpen(true);
   };
 
   const handleCloseModal = () => {
-    // setIsModalOpen(false);
-    // setSelectedCar(null);
+    setIsModalOpen(false);
+    setSelectedCar(null);
   };
 
-  const handleChatSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    // TODO: Handle chat prompt submission
-    console.log('Chat prompt:', chatPrompt);
-    setChatPrompt('');
+
+  const handleOnboardingComplete = async (creditScore: number, budget: number) => {
+    if (currentUser) {
+      // Save to localStorage as fallback
+      localStorage.setItem(`onboarding_${currentUser.uid}`, 'true');
+      localStorage.setItem(`user_preferences_${currentUser.uid}`, JSON.stringify({
+        creditScore,
+        budget,
+      }));
+      
+      setShowOnboarding(false);
+      
+      // Refresh the data to fetch cars with the new profile information
+      // The useEffect will run again when currentUser changes, but we can also trigger it manually
+      setLoading(true);
+      try {
+        const userResponse = await api.get(`/users/${currentUser.uid}`);
+        const profile: UserProfile | undefined = userResponse?.user;
+        setUserProfile(profile || null);
+
+        if (profile?.budget && profile?.credit_score) {
+          const carsResponse = await api.get(`/cars/${currentUser.uid}`);
+          const fetchedCars: BackendCar[] = carsResponse?.cars || [];
+
+          if (fetchedCars.length === 0) {
+            setCars([]);
+            setLeftCardIndex(0);
+            setRightCardIndex(1);
+            setError('No cars found within your budget.');
+          } else {
+            const mappedCars = fetchedCars.map(mapBackendCar);
+            setCars(mappedCars);
+
+            const initialEvenIndex = mappedCars.findIndex((_, index) => index % 2 === 0);
+            const initialOddIndex = mappedCars.findIndex((_, index) => index % 2 === 1);
+
+            setLeftCardIndex(initialEvenIndex !== -1 ? initialEvenIndex : null);
+            setRightCardIndex(initialOddIndex !== -1 ? initialOddIndex : null);
+            setError(null);
+          }
+        }
+      } catch (err: any) {
+        const message = err?.message || 'Failed to load comparison data.';
+        setError(message);
+      } finally {
+        setLoading(false);
+      }
+    }
   };
 
   const leftCar = useMemo(() => {
@@ -198,12 +259,45 @@ export const Comparison = () => {
 
   const isReady = !loading && (leftCar !== null || rightCar !== null);
 
+  // Keyboard event handler for arrow keys
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Only handle arrow keys if not currently animating and not typing in an input
+      if (isAdvancing.left || isAdvancing.right) return;
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+      if (showOnboarding || isChatExpanded) return; // Don't handle keys when modals are open
+
+      if (event.key === 'ArrowLeft' && leftCar && !isAdvancing.left) {
+        event.preventDefault();
+        handleAdvance('left');
+      } else if (event.key === 'ArrowRight' && rightCar && !isAdvancing.right) {
+        event.preventDefault();
+        handleAdvance('right');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [leftCar, rightCar, isAdvancing, showOnboarding, isChatExpanded, handleAdvance]);
+
   return (
     <div className="min-h-screen flex flex-col bg-background-light">
       <Header />
       <div className="flex-1 flex gap-4 px-4 py-4 items-start min-h-0">
         <Sidebar />
         <main className="flex-1 flex flex-col max-w-7xl mx-auto px-4 w-full">
+          {/* ChatBot Component - At the top */}
+          <div className="mb-6">
+            <ChatBot 
+              isExpanded={isChatExpanded}
+              onToggle={() => setIsChatExpanded(!isChatExpanded)}
+            />
+          </div>
+
           {userProfile && (
             <div className="mb-4 flex flex-wrap items-center gap-4 bg-container-primary border border-container-stroke rounded-xl px-4 py-3 shadow-sm">
               <div>
@@ -246,36 +340,19 @@ export const Comparison = () => {
               </div>
             </div>
           )}
-
-          {/* Chatbot Prompt Input */}
-          <div className="mb-4">
-            <form onSubmit={handleChatSubmit} className="w-full">
-              <div className="flex gap-2 items-center">
-                <input
-                  type="text"
-                  value={chatPrompt}
-                  onChange={(e) => setChatPrompt(e.target.value)}
-                  placeholder="Ask about cars, financing, or get recommendations..."
-                  className="flex-1 px-4 py-6 border border-container-stroke rounded-lg bg-container-primary text-text-dark placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                />
-                <button
-                  type="submit"
-                  className="px-6 py-6 bg-primary text-text-light rounded-lg font-semibold hover:opacity-90 transition flex items-center gap-2"
-                >
-                  <Send className="w-5 h-5" />
-                  <span>Send</span>
-                </button>
-              </div>
-            </form>
-          </div>
           
           {isReady && (
             <>
               {/* Two Cards Side-by-Side */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 relative">
                 {leftCar ? (
                   <div
-                    className={`cursor-pointer ${isAdvancing.left ? 'opacity-70 pointer-events-none' : ''}`}
+                    key={`left-${leftCardIndex}`}
+                    className={`cursor-pointer transition-all duration-300 ease-in-out ${
+                      swipingCard?.side === 'left' 
+                        ? 'transform -translate-x-[150%] opacity-0 scale-95' // Left card swipes left
+                        : 'transform translate-x-0 opacity-100 scale-100'
+                    } ${isAdvancing.left ? 'pointer-events-none' : ''}`}
                     onClick={() => handleCardClick(leftCar)}
                   >
                     <CarRecCard carData={leftCar} />
@@ -287,7 +364,12 @@ export const Comparison = () => {
                 )}
                 {rightCar ? (
                   <div
-                    className={`cursor-pointer ${isAdvancing.right ? 'opacity-70 pointer-events-none' : ''}`}
+                    key={`right-${rightCardIndex}`}
+                    className={`cursor-pointer transition-all duration-300 ease-in-out ${
+                      swipingCard?.side === 'right' 
+                        ? 'transform translate-x-[150%] opacity-0 scale-95' // Right card swipes right
+                        : 'transform translate-x-0 opacity-100 scale-100'
+                    } ${isAdvancing.right ? 'pointer-events-none' : ''}`}
                     onClick={() => handleCardClick(rightCar)}
                   >
                     <CarRecCard carData={rightCar} />
@@ -328,6 +410,20 @@ export const Comparison = () => {
         isOpen={isModalOpen}
         onClose={handleCloseModal}
         carData={selectedCar || undefined}
+      />
+      
+      {/* Onboarding Modal - Required if user doesn't have budget/credit score */}
+      <OnboardingModal
+        isOpen={showOnboarding}
+        onClose={() => {
+          // Only allow closing if user has completed profile (has budget and credit_score)
+          if (userProfile?.budget && userProfile?.credit_score) {
+            setShowOnboarding(false);
+          }
+          // Otherwise, don't allow closing - user must complete onboarding
+        }}
+        onComplete={handleOnboardingComplete}
+        required={!userProfile?.budget || !userProfile?.credit_score}
       />
     </div>
   )

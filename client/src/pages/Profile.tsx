@@ -105,7 +105,7 @@ export const Profile = () => {
           <div className="bg-container-primary rounded-lg border border-container-stroke p-6">
             <h2 className="mb-4">Saved Vehicles</h2>
             {savedVehicles.length === 0 ? (
-              <p className="text-text-secondary">No saved vehicles yet. Heart cars on the Comparison page to save them here.</p>
+              <p className="text-text-secondary">No saved vehicles yet. Add cars to favorites from the Home or Comparison page to save them here.</p>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {savedVehicles.map((car, index) => (

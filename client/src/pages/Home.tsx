@@ -5,6 +5,7 @@ import { OnboardingModal } from '../components/OnboardingModal';
 import { CarCard } from '../components/CarCard';
 import { Header } from '../components/Header';
 import { ChevronLeft, ChevronRight, Play, Info } from 'lucide-react';
+
 interface Car {
   id: string;
   make: string;
@@ -20,6 +21,12 @@ export const Home = () => {
   // Search form state
   const [carModel, setCarModel] = useState('');
   const [year, setYear] = useState('');
+  // Car data state
+  const [cars, setCars] = useState<Car[]>([]);
+  const [carModels, setCarModels] = useState<string[]>([]);
+  const [years, setYears] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   // Carousel state
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isInfoHovered, setIsInfoHovered] = useState(false);
@@ -29,76 +36,6 @@ export const Home = () => {
     '/home/home1.png',
     '/home/home.png',
   ];
-  // Mock car data - all Toyota cars
-  const mockCars: Car[] = [
-    {
-      id: '1',
-      make: 'Toyota',
-      model: 'Camry',
-      year: 2023,
-      price: 28000,
-      imageUrl: 'https://images.unsplash.com/photo-1621007947382-bb3c3994e3fb?w=400&h=300&fit=crop',
-    },
-    {
-      id: '2',
-      make: 'Toyota',
-      model: 'Corolla',
-      year: 2023,
-      price: 22000,
-      imageUrl: 'https://images.unsplash.com/photo-1606664515524-ed2f786a0bd6?w=400&h=300&fit=crop',
-    },
-    {
-      id: '3',
-      make: 'Toyota',
-      model: 'RAV4',
-      year: 2023,
-      price: 32000,
-      imageUrl: 'https://images.unsplash.com/photo-1606664515524-ed2f786a0bd6?w=400&h=300&fit=crop',
-    },
-    {
-      id: '4',
-      make: 'Toyota',
-      model: 'Highlander',
-      year: 2023,
-      price: 38000,
-      imageUrl: 'https://images.unsplash.com/photo-1560958089-b8a1929cea89?w=400&h=300&fit=crop',
-    },
-    {
-      id: '5',
-      make: 'Toyota',
-      model: '4Runner',
-      year: 2023,
-      price: 40000,
-      imageUrl: 'https://images.unsplash.com/photo-1555215695-3004980ad54e?w=400&h=300&fit=crop',
-    },
-    {
-      id: '6',
-      make: 'Toyota',
-      model: 'Prius',
-      year: 2023,
-      price: 28000,
-      imageUrl: 'https://images.unsplash.com/photo-1617814076367-b759c7d7e738?w=400&h=300&fit=crop',
-    },
-    {
-      id: '7',
-      make: 'Toyota',
-      model: 'Tacoma',
-      year: 2023,
-      price: 35000,
-      imageUrl: 'https://images.unsplash.com/photo-1621007947382-bb3c3994e3fb?w=400&h=300&fit=crop',
-    },
-    {
-      id: '8',
-      make: 'Toyota',
-      model: 'Sienna',
-      year: 2023,
-      price: 36000,
-      imageUrl: 'https://images.unsplash.com/photo-1606664515524-ed2f786a0bd6?w=400&h=300&fit=crop',
-    },
-  ];
-  // Mock data for dropdowns - only Toyota models
-  const carModels = ['Camry', 'Corolla', 'RAV4', 'Highlander', '4Runner', 'Prius', 'Tacoma', 'Sienna', 'Tundra', 'Sequoia'];
-  const years = ['2024', '2023', '2022', '2021', '2020', '2019'];
 
 
   // Handle click on home screen to open onboarding modal
@@ -139,10 +76,63 @@ export const Home = () => {
     }
   };
   
+  // Fetch available filters (models and years) from CSV
+  useEffect(() => {
+    const fetchFilters = async () => {
+      try {
+        const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000';
+        const response = await fetch(`${API_URL}/api/cars/filters`);
+        const data = await response.json();
+        
+        if (data.success) {
+          setCarModels(data.models || []);
+          setYears(data.years || []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch filters:', err);
+      }
+    };
+    
+    fetchFilters();
+  }, []);
+
+  // Fetch cars from CSV based on filters
+  const fetchCars = async (model: string, year: string) => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000';
+      const params = new URLSearchParams();
+      if (model) params.append('model', model);
+      if (year) params.append('year', year);
+      
+      const response = await fetch(`${API_URL}/api/cars/search?${params.toString()}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setCars(data.cars || []);
+      } else {
+        setError(data.error || 'Failed to fetch cars');
+        setCars([]);
+      }
+    } catch (err: any) {
+      console.error('Failed to fetch cars:', err);
+      setError(err.message || 'Failed to fetch cars');
+      setCars([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load all cars on mount
+  useEffect(() => {
+    fetchCars('', '');
+  }, []);
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Search:', { carModel, year });
-    // TODO: Implement actual search functionality
+    fetchCars(carModel, year);
   };
 
   // Carousel navigation
@@ -338,12 +328,34 @@ export const Home = () => {
             <h2 className="text-3xl font-bold text-[#1F2937] mb-8">
               Recommended Cars for You
             </h2>
+            {/* Loading State */}
+            {loading && (
+              <div className="text-center py-8 text-text-secondary">
+                Loading cars...
+              </div>
+            )}
+            {/* Error State */}
+            {error && !loading && (
+              <div className="text-center py-8 text-red-600">
+                {error}
+              </div>
+            )}
             {/* Car Cards Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {mockCars.map((car) => (
-                <CarCard key={car.id} car={car} />
-              ))}
-            </div>
+            {!loading && !error && (
+              <>
+                {cars.length === 0 ? (
+                  <div className="text-center py-8 text-text-secondary">
+                    No cars found. Try adjusting your filters.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {cars.map((car) => (
+                      <CarCard key={car.id} car={car} />
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </main>
       </div>

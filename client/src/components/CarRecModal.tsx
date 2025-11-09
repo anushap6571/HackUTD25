@@ -13,6 +13,7 @@ interface CarRecModalProps {
     totalCost: number;
     suggestedDownPayment: number;
   };
+  fullScreen?: boolean;
 }
 
 interface CarData {
@@ -37,7 +38,7 @@ interface PredictionState {
 
 const userProfileCache: Record<string, UserMetrics> = {};
 
-export const CarRecModal = ({ isOpen, onClose, carData }: CarRecModalProps) => {
+export const CarRecModal = ({ isOpen, onClose, carData, fullScreen = false }: CarRecModalProps) => {
   // Default car data if not provided
   const defaultCarData: CarData = {
     image: '/car-placeholder.jpg', // You can replace this with actual car image
@@ -58,11 +59,13 @@ export const CarRecModal = ({ isOpen, onClose, carData }: CarRecModalProps) => {
 
   useEffect(() => {
     if (!car || !isOpen) return;
-    const minDownPayment = 1000;
-    const maxDownPayment = 10998;
-    const suggested = car.suggestedDownPayment ?? defaultCarData.suggestedDownPayment;
+    const carPrice = Number.isFinite(car.totalCost) ? Number(car.totalCost) : 0;
+    const minDownPayment = Math.min(1000, carPrice * 0.1); // 10% of car price or $1000, whichever is lower
+    const maxDownPayment = Math.max(carPrice * 0.9, 1000); // 90% of car price or $1000, whichever is higher
+    const suggested = car.suggestedDownPayment ?? Math.max(minDownPayment, carPrice * 0.1);
     const clampedSuggested = Math.min(Math.max(suggested, minDownPayment), maxDownPayment);
-    const normalized = (clampedSuggested - minDownPayment) / (maxDownPayment - minDownPayment);
+    const range = maxDownPayment - minDownPayment;
+    const normalized = range > 0 ? (clampedSuggested - minDownPayment) / range : 0.5;
     setDownPayment(Math.round(normalized * 100));
   }, [car?.model, car?.year, car?.totalCost, car?.suggestedDownPayment, isOpen]);
 
@@ -117,9 +120,15 @@ export const CarRecModal = ({ isOpen, onClose, carData }: CarRecModalProps) => {
   // Convert slider value (0-100) to loan term (10-60 months)
   const loanTermMonths = useMemo(() => Math.round(10 + (loanTerm / 100) * 50), [loanTerm]);
   
-  // Convert slider value (0-100) to down payment ($1000-$10,998)
-  const downPaymentAmount = useMemo(() => Math.round(1000 + (downPayment / 100) * 9998), [downPayment]);
   const carPrice = useMemo(() => Number.isFinite(car.totalCost) ? Number(car.totalCost) : 0, [car.totalCost]);
+  
+  // Convert slider value (0-100) to down payment (dynamic based on car price)
+  const downPaymentAmount = useMemo(() => {
+    const minDownPayment = Math.min(1000, carPrice * 0.1); // 10% of car price or $1000, whichever is lower
+    const maxDownPayment = Math.max(carPrice * 0.9, 1000); // 90% of car price or $1000, whichever is higher
+    const range = maxDownPayment - minDownPayment;
+    return Math.round(minDownPayment + (downPayment / 100) * range);
+  }, [downPayment, carPrice]);
   const downPaymentRate = useMemo(() => {
     if (!carPrice || carPrice <= 0) return 0;
     const rate = downPaymentAmount / carPrice;
@@ -273,41 +282,62 @@ export const CarRecModal = ({ isOpen, onClose, carData }: CarRecModalProps) => {
       />
       
       {/* Modal */}
-      <div className="relative bg-container-primary rounded-xl p-6 max-w-xl w-full mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div className={`relative bg-container-primary shadow-2xl overflow-y-auto ${
+        fullScreen 
+          ? 'w-full h-full rounded-none p-8' 
+          : 'rounded-xl p-6 max-w-xl w-full mx-4 max-h-[90vh]'
+      }`}>
+        {/* Close Button */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 z-10 w-10 h-10 bg-container-primary hover:bg-container-secondary rounded-full flex items-center justify-center shadow-md transition"
+          aria-label="Close modal"
+        >
+          <span className="text-2xl text-text-dark">×</span>
+        </button>
+
         {/* Car Image */}
-        <div className="flex justify-center mb-4">
+        <div className={`flex justify-center mb-4 ${fullScreen ? 'mt-8' : ''}`}>
           {car.image ? (
             <img 
               src={car.image} 
               alt={car.model}
-              className="w-full max-w-xs h-auto rounded-lg object-cover"
+              className={`rounded-lg object-cover ${
+                fullScreen 
+                  ? 'w-full max-w-2xl h-auto' 
+                  : 'w-full max-w-xs h-auto'
+              }`}
             />
           ) : (
-            <div className="w-full max-w-xs h-32 bg-container-secondary rounded-lg flex items-center justify-center">
+            <div className={`bg-container-secondary rounded-lg flex items-center justify-center ${
+              fullScreen 
+                ? 'w-full max-w-2xl h-64' 
+                : 'w-full max-w-xs h-32'
+            }`}>
               <span className="text-text-secondary text-xs">Car Image</span>
             </div>
           )}
         </div>
 
         {/* Car Model */}
-        <h2 className="font-semibold text-text-dark text-center mb-3">
+        <h2 className={`font-semibold text-text-dark text-center mb-3 ${fullScreen ? 'text-3xl mb-6' : ''}`}>
           {car.year} {car.model}
         </h2>
 
         {/* Total Cost */}
-        <div className="text-center mb-4">
-          <div className="text-xl font-bold text-text-dark mb-1">
+        <div className={`text-center mb-4 ${fullScreen ? 'mb-6' : ''}`}>
+          <div className={`font-bold text-text-dark mb-1 ${fullScreen ? 'text-3xl' : 'text-xl'}`}>
             {formatCurrency(car.totalCost)}
           </div>
-          <div className="text-sm text-text-secondary">Total Cost</div>
+          <div className={`text-text-secondary ${fullScreen ? 'text-base' : 'text-sm'}`}>Total Cost</div>
         </div>
 
         {/* Suggested Down Payment */}
-        <div className="text-center mb-6">
-          <div className="text-xl font-semibold text-text-dark mb-1">
+        <div className={`text-center mb-6 ${fullScreen ? 'mb-8' : ''}`}>
+          <div className={`font-semibold text-text-dark mb-1 ${fullScreen ? 'text-2xl' : 'text-xl'}`}>
             {formatCurrency(car.suggestedDownPayment)}
           </div>
-          <div className="text-sm text-text-secondary">
+          <div className={`text-text-secondary ${fullScreen ? 'text-base' : 'text-sm'}`}>
             <TermTooltip 
               term="Down Payment" 
               definition="The initial payment made when purchasing a vehicle, paid upfront. A larger down payment reduces the loan amount and can result in better interest rates."
@@ -318,8 +348,8 @@ export const CarRecModal = ({ isOpen, onClose, carData }: CarRecModalProps) => {
         </div>
 
         {/* Loan Term Slider */}
-        <div className="mb-6">
-          <label className="block text-text-dark font-medium mb-3 text-sm">
+        <div className={`mb-6 ${fullScreen ? 'mb-8' : ''}`}>
+          <label className={`block text-text-dark font-medium mb-3 ${fullScreen ? 'text-lg mb-4' : 'text-sm'}`}>
             <TermTooltip 
               term="Loan Term" 
               definition="The length of time over which the loan will be repaid, typically measured in months. Longer terms result in lower monthly payments but higher total interest."
@@ -327,13 +357,13 @@ export const CarRecModal = ({ isOpen, onClose, carData }: CarRecModalProps) => {
               Loan Term
             </TermTooltip>
           </label>
-          <div className="relative pt-8">
+          <div className={`relative ${fullScreen ? 'pt-10' : 'pt-8'}`}>
             {/* Value Display Bubble */}
             <div 
               className="absolute top-0 transform -translate-x-1/2 transition-all duration-150"
               style={{ left: `calc(${loanTerm}% - 0px)` }}
             >
-              <div className="bg-primary text-text-light px-3 py-1.5 rounded text-sm font-medium whitespace-nowrap shadow-lg">
+              <div className={`bg-primary text-text-light px-3 py-1.5 rounded font-medium whitespace-nowrap shadow-lg ${fullScreen ? 'text-base' : 'text-sm'}`}>
                 {loanTermMonths} months
               </div>
             </div>
@@ -341,10 +371,10 @@ export const CarRecModal = ({ isOpen, onClose, carData }: CarRecModalProps) => {
             {/* Slider Container */}
             <div className="relative">
               {/* Slider Track Background */}
-              <div className="relative h-2 bg-container-secondary rounded-full">
+              <div className={`relative bg-container-secondary rounded-full ${fullScreen ? 'h-3' : 'h-2'}`}>
                 {/* Filled portion (red) */}
                 <div 
-                  className="absolute h-2 bg-primary rounded-full transition-all duration-150"
+                  className={`absolute bg-primary rounded-full transition-all duration-150 ${fullScreen ? 'h-3' : 'h-2'}`}
                   style={{ width: `${loanTerm}%` }}
                 />
                 
@@ -355,18 +385,18 @@ export const CarRecModal = ({ isOpen, onClose, carData }: CarRecModalProps) => {
                   max="100"
                   value={loanTerm}
                   onChange={(e) => setLoanTerm(Number(e.target.value))}
-                  className="absolute inset-0 w-full h-2 opacity-0 cursor-pointer z-10"
+                  className={`absolute inset-0 w-full opacity-0 cursor-pointer z-10 ${fullScreen ? 'h-3' : 'h-2'}`}
                 />
                 
                 {/* Slider Thumb */}
                 <div 
-                  className="absolute w-5 h-5 bg-container-primary rounded-full border-2 border-primary shadow-lg transform -translate-y-1.5 -translate-x-1/2 top-1/2 transition-all duration-150 z-20"
+                  className={`absolute bg-container-primary rounded-full border-2 border-primary shadow-lg transform -translate-x-1/2 top-1/2 transition-all duration-150 z-20 ${fullScreen ? 'w-6 h-6 -translate-y-3' : 'w-5 h-5 -translate-y-1.5'}`}
                   style={{ left: `${loanTerm}%` }}
                 />
               </div>
               
               {/* Min/Max Labels */}
-              <div className="flex justify-between mt-3 text-sm text-text-secondary">
+              <div className={`flex justify-between mt-3 text-text-secondary ${fullScreen ? 'text-base mt-4' : 'text-sm'}`}>
                 <span>10 months</span>
                 <span>60 months</span>
               </div>
@@ -375,8 +405,8 @@ export const CarRecModal = ({ isOpen, onClose, carData }: CarRecModalProps) => {
         </div>
 
         {/* Down Payment Slider */}
-        <div className="mb-6">
-          <label className="block text-text-dark font-medium mb-3 text-sm">
+        <div className={`mb-6 ${fullScreen ? 'mb-8' : ''}`}>
+          <label className={`block text-text-dark font-medium mb-3 ${fullScreen ? 'text-lg mb-4' : 'text-sm'}`}>
             <TermTooltip 
               term="Down Payment" 
               definition="The initial payment made when purchasing a vehicle, paid upfront. A larger down payment reduces the loan amount and can result in better interest rates."
@@ -384,13 +414,13 @@ export const CarRecModal = ({ isOpen, onClose, carData }: CarRecModalProps) => {
               Down Payment
             </TermTooltip>
           </label>
-          <div className="relative pt-8">
+          <div className={`relative ${fullScreen ? 'pt-10' : 'pt-8'}`}>
             {/* Value Display Bubble */}
             <div 
               className="absolute top-0 transform -translate-x-1/2 transition-all duration-150"
               style={{ left: `calc(${downPayment}% - 0px)` }}
             >
-              <div className="bg-primary text-text-light px-3 py-1.5 rounded text-sm font-medium whitespace-nowrap shadow-lg">
+              <div className={`bg-primary text-text-light px-3 py-1.5 rounded font-medium whitespace-nowrap shadow-lg ${fullScreen ? 'text-base' : 'text-sm'}`}>
                 {formatCurrency(downPaymentAmount)}
               </div>
             </div>
@@ -398,10 +428,10 @@ export const CarRecModal = ({ isOpen, onClose, carData }: CarRecModalProps) => {
             {/* Slider Container */}
             <div className="relative">
               {/* Slider Track Background */}
-              <div className="relative h-2 bg-container-secondary rounded-full">
+              <div className={`relative bg-container-secondary rounded-full ${fullScreen ? 'h-3' : 'h-2'}`}>
                 {/* Filled portion (red) */}
                 <div 
-                  className="absolute h-2 bg-primary rounded-full transition-all duration-150"
+                  className={`absolute bg-primary rounded-full transition-all duration-150 ${fullScreen ? 'h-3' : 'h-2'}`}
                   style={{ width: `${downPayment}%` }}
                 />
                 
@@ -412,33 +442,33 @@ export const CarRecModal = ({ isOpen, onClose, carData }: CarRecModalProps) => {
                   max="100"
                   value={downPayment}
                   onChange={(e) => setDownPayment(Number(e.target.value))}
-                  className="absolute inset-0 w-full h-2 opacity-0 cursor-pointer z-10"
+                  className={`absolute inset-0 w-full opacity-0 cursor-pointer z-10 ${fullScreen ? 'h-3' : 'h-2'}`}
                 />
                 
                 {/* Slider Thumb */}
                 <div 
-                  className="absolute w-5 h-5 bg-container-primary rounded-full border-2 border-primary shadow-lg transform -translate-y-1.5 -translate-x-1/2 top-1/2 transition-all duration-150 z-20"
+                  className={`absolute bg-container-primary rounded-full border-2 border-primary shadow-lg transform -translate-x-1/2 top-1/2 transition-all duration-150 z-20 ${fullScreen ? 'w-6 h-6 -translate-y-3' : 'w-5 h-5 -translate-y-1.5'}`}
                   style={{ left: `${downPayment}%` }}
                 />
               </div>
               
               {/* Min/Max Labels */}
-              <div className="flex justify-between mt-3 text-sm text-text-secondary">
-                <span>{formatCurrency(1000)}</span>
-                <span>{formatCurrency(10998)}</span>
+              <div className={`flex justify-between mt-3 text-text-secondary ${fullScreen ? 'text-base mt-4' : 'text-sm'}`}>
+                <span>{formatCurrency(Math.min(1000, carPrice * 0.1))}</span>
+                <span>{formatCurrency(Math.max(carPrice * 0.9, 1000))}</span>
               </div>
             </div>
           </div>
         </div>
 
         {/* Summary Section */}
-        <div className="grid grid-cols-3 gap-4 pt-4 border-t border-container-stroke">
+        <div className={`grid grid-cols-3 gap-4 pt-4 border-t border-container-stroke ${fullScreen ? 'pt-6 gap-6' : ''}`}>
           {/* Predicted APR */}
           <div className="text-center">
-            <div className="text-lg font-semibold text-text-dark mb-1">
+            <div className={`font-semibold text-text-dark mb-1 ${fullScreen ? 'text-2xl mb-2' : 'text-lg'}`}>
               {aprDisplay}
             </div>
-            <div className="text-xs text-text-secondary">
+            <div className={`text-text-secondary ${fullScreen ? 'text-sm' : 'text-xs'}`}>
               <TermTooltip 
                 term="Predicted APR" 
                 definition="Annual Percentage Rate - the yearly cost of borrowing money, expressed as a percentage. Includes interest and fees. Lower APR means lower overall loan cost."
@@ -450,10 +480,10 @@ export const CarRecModal = ({ isOpen, onClose, carData }: CarRecModalProps) => {
 
           {/* Default Risk */}
           <div className="text-center">
-            <div className="text-lg font-semibold text-text-dark mb-1">
+            <div className={`font-semibold text-text-dark mb-1 ${fullScreen ? 'text-2xl mb-2' : 'text-lg'}`}>
               {defaultRiskDisplay}
             </div>
-            <div className="text-xs text-text-secondary">
+            <div className={`text-text-secondary ${fullScreen ? 'text-sm' : 'text-xs'}`}>
               <TermTooltip 
                 term="Default Risk" 
                 definition="The likelihood that a borrower will fail to make required loan payments. Calculated based on down payment percentage and other factors."
@@ -465,10 +495,10 @@ export const CarRecModal = ({ isOpen, onClose, carData }: CarRecModalProps) => {
 
           {/* Monthly Payment */}
           <div className="text-center">
-            <div className="text-lg font-semibold text-text-dark mb-1">
+            <div className={`font-semibold text-text-dark mb-1 ${fullScreen ? 'text-2xl mb-2' : 'text-lg'}`}>
               {monthlyPaymentDisplay}
             </div>
-            <div className="text-xs text-text-secondary">
+            <div className={`text-text-secondary ${fullScreen ? 'text-sm' : 'text-xs'}`}>
               <TermTooltip 
                 term="Monthly Payment" 
                 definition="The fixed amount paid each month toward the loan, including both principal (the loan amount) and interest (the cost of borrowing)."
@@ -480,19 +510,19 @@ export const CarRecModal = ({ isOpen, onClose, carData }: CarRecModalProps) => {
         </div>
 
         {(prediction?.recommendation && !predictionLoading) && (
-          <div className="mt-4 text-xs text-text-secondary text-center">
+          <div className={`mt-4 text-text-secondary text-center ${fullScreen ? 'text-sm mt-6' : 'text-xs'}`}>
             Recommendation: {prediction.recommendation}
           </div>
         )}
 
         {predictionUnavailableMessage && (
-          <div className="mt-4 text-xs text-text-secondary text-center">
+          <div className={`mt-4 text-text-secondary text-center ${fullScreen ? 'text-sm mt-6' : 'text-xs'}`}>
             {predictionUnavailableMessage}
           </div>
         )}
 
         {predictionError && !predictionLoading && (
-          <div className="mt-4 text-xs text-red-600 text-center">
+          <div className={`mt-4 text-red-600 text-center ${fullScreen ? 'text-sm mt-6' : 'text-xs'}`}>
             {predictionError}
           </div>
         )}

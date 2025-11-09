@@ -47,8 +47,9 @@ export const CarRecCard = ({ carData }: CarRecCardProps) => {
   };
 
   const car: CarData = carData || defaultCarData;
+  const carPrice = useMemo(() => Number.isFinite(car.totalCost) ? Number(car.totalCost) : 0, [car.totalCost]);
   const [loanTerm, setLoanTerm] = useState(50); // Value from 0-100, representing 10-60 months
-  const [downPayment, setDownPayment] = useState(50); // Value from 0-100, representing $1000-$10,998
+  const [downPayment, setDownPayment] = useState(50); // Value from 0-100, representing dynamic down payment range
   const [isSaved, setIsSaved] = useState(false);
   const [userMetrics, setUserMetrics] = useState<UserMetrics | null>(null);
   const [prediction, setPrediction] = useState<PredictionState | null>(null);
@@ -79,11 +80,13 @@ export const CarRecCard = ({ carData }: CarRecCardProps) => {
   // Sync down payment slider with suggested down payment when car changes
   useEffect(() => {
     if (!car) return;
-    const minDownPayment = 1000;
-    const maxDownPayment = 10998;
-    const suggested = car.suggestedDownPayment ?? defaultCarData.suggestedDownPayment;
+    const carPrice = Number.isFinite(car.totalCost) ? Number(car.totalCost) : 0;
+    const minDownPayment = Math.min(1000, carPrice * 0.1); // 10% of car price or $1000, whichever is lower
+    const maxDownPayment = Math.max(carPrice * 0.9, 1000); // 90% of car price or $1000, whichever is higher
+    const suggested = car.suggestedDownPayment ?? Math.max(minDownPayment, carPrice * 0.1);
     const clampedSuggested = Math.min(Math.max(suggested, minDownPayment), maxDownPayment);
-    const normalized = (clampedSuggested - minDownPayment) / (maxDownPayment - minDownPayment);
+    const range = maxDownPayment - minDownPayment;
+    const normalized = range > 0 ? (clampedSuggested - minDownPayment) / range : 0.5;
     setDownPayment(Math.round(normalized * 100));
   }, [car?.model, car?.year, car?.totalCost, car?.suggestedDownPayment]);
 
@@ -164,9 +167,13 @@ export const CarRecCard = ({ carData }: CarRecCardProps) => {
   // Convert slider value (0-100) to loan term (10-60 months)
   const loanTermMonths = useMemo(() => Math.round(10 + (loanTerm / 100) * 50), [loanTerm]);
   
-  // Convert slider value (0-100) to down payment ($1000-$10,998)
-  const downPaymentAmount = useMemo(() => Math.round(1000 + (downPayment / 100) * 9998), [downPayment]);
-  const carPrice = useMemo(() => Number.isFinite(car.totalCost) ? Number(car.totalCost) : 0, [car.totalCost]);
+  // Convert slider value (0-100) to down payment (dynamic based on car price)
+  const downPaymentAmount = useMemo(() => {
+    const minDownPayment = Math.min(1000, carPrice * 0.1); // 10% of car price or $1000, whichever is lower
+    const maxDownPayment = Math.max(carPrice * 0.9, 1000); // 90% of car price or $1000, whichever is higher
+    const range = maxDownPayment - minDownPayment;
+    return Math.round(minDownPayment + (downPayment / 100) * range);
+  }, [downPayment, carPrice]);
   const downPaymentRate = useMemo(() => {
     if (!carPrice || carPrice <= 0) return 0;
     const rate = downPaymentAmount / carPrice;
@@ -480,8 +487,8 @@ export const CarRecCard = ({ carData }: CarRecCardProps) => {
             
             {/* Min/Max Labels */}
             <div className="flex justify-between mt-1.5 text-xs text-text-secondary">
-              <span>{formatCurrency(1000)}</span>
-              <span>{formatCurrency(10998)}</span>
+              <span>{formatCurrency(Math.min(1000, carPrice * 0.1))}</span>
+              <span>{formatCurrency(Math.max(carPrice * 0.9, 1000))}</span>
             </div>
           </div>
         </div>

@@ -13,6 +13,8 @@ __pycache__/
 
 /client/.env
 
+venv
+
  .vscode/
 
  client/.env

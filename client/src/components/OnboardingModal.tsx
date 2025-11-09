@@ -6,9 +6,10 @@ interface OnboardingModalProps {
   isOpen: boolean;
   onClose: () => void;
   onComplete: (creditScore: number, budget: number) => void;
+  required?: boolean; // If true, modal cannot be closed until completed
 }
 
-export const OnboardingModal = ({ isOpen, onClose, onComplete }: OnboardingModalProps) => {
+export const OnboardingModal = ({ isOpen, onClose, onComplete, required = false }: OnboardingModalProps) => {
   const { currentUser } = useAuth();
   // Credit score range: 300-850
   const minCreditScore = 300;
@@ -74,7 +75,8 @@ export const OnboardingModal = ({ isOpen, onClose, onComplete }: OnboardingModal
       {/* Backdrop */}
       <div 
         className="absolute inset-0 bg-black/50"
-        onClick={onClose}
+        onClick={required ? undefined : onClose}
+        style={{ pointerEvents: required ? 'none' : 'auto' }}
       />
       
       {/* Modal */}
