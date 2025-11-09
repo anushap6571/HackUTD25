@@ -29,6 +29,8 @@ export const Signup = () => {
     try {
       // Pass firstName and lastName to signup
       await signup(email, password, firstName, lastName);
+      // Set a flag to indicate user just signed up
+      sessionStorage.setItem('justSignedUp', 'true');
       navigate('/home');
     } catch (err: any) {
       setError(err.message || 'Failed to create account');

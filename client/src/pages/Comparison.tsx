@@ -189,7 +189,7 @@ export const Comparison = () => {
   const handleCardClick = (car: CarCardData | null) => {
     if (!car) return;
     setSelectedCar(car);
-    setIsModalOpen(true);
+    setIsModalOpen(false);
   };
 
   const handleCloseModal = () => {

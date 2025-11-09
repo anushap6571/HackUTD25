@@ -5,7 +5,7 @@ import { OnboardingModal } from '../components/OnboardingModal';
 import { CarCard } from '../components/CarCard';
 import { Header } from '../components/Header';
 import { ChevronLeft, ChevronRight, Play, Info } from 'lucide-react';
-
+import api from '../config/api2';
 interface Car {
   id: string;
   make: string;
@@ -13,20 +13,15 @@ interface Car {
   year: number;
   price: number;
   imageUrl: string;
+  link?: string;
 }
 
 export const Home = () => {
-  const { currentUser } = useAuth();
+  const { currentUser, loading } = useAuth();
   const [showOnboarding, setShowOnboarding] = useState(false);
   // Search form state
   const [carModel, setCarModel] = useState('');
   const [year, setYear] = useState('');
-  // Car data state
-  const [cars, setCars] = useState<Car[]>([]);
-  const [carModels, setCarModels] = useState<string[]>([]);
-  const [years, setYears] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   // Carousel state
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isInfoHovered, setIsInfoHovered] = useState(false);
@@ -36,22 +31,94 @@ export const Home = () => {
     '/home/home1.png',
     '/home/home.png',
   ];
+  // Mock car data - all Toyota cars
+  const mockCars: Car[] = [
+    {
+      id: '1',
+      make: 'Toyota',
+      model: 'Camry',
+      year: 2023,
+      price: 28000,
+      imageUrl: 'https://images.unsplash.com/photo-1621007947382-bb3c3994e3fb?w=400&h=300&fit=crop',
+    },
+    {
+      id: '2',
+      make: 'Toyota',
+      model: 'Corolla',
+      year: 2023,
+      price: 22000,
+      imageUrl: 'https://images.unsplash.com/photo-1606664515524-ed2f786a0bd6?w=400&h=300&fit=crop',
+    },
+    {
+      id: '3',
+      make: 'Toyota',
+      model: 'RAV4',
+      year: 2023,
+      price: 32000,
+      imageUrl: 'https://images.unsplash.com/photo-1606664515524-ed2f786a0bd6?w=400&h=300&fit=crop',
+    },
+    {
+      id: '4',
+      make: 'Toyota',
+      model: 'Highlander',
+      year: 2023,
+      price: 38000,
+      imageUrl: 'https://images.unsplash.com/photo-1560958089-b8a1929cea89?w=400&h=300&fit=crop',
+    },
+    {
+      id: '5',
+      make: 'Toyota',
+      model: '4Runner',
+      year: 2023,
+      price: 40000,
+      imageUrl: 'https://images.unsplash.com/photo-1555215695-3004980ad54e?w=400&h=300&fit=crop',
+    },
+    {
+      id: '6',
+      make: 'Toyota',
+      model: 'Prius',
+      year: 2023,
+      price: 28000,
+      imageUrl: 'https://images.unsplash.com/photo-1617814076367-b759c7d7e738?w=400&h=300&fit=crop',
+    },
+    {
+      id: '7',
+      make: 'Toyota',
+      model: 'Tacoma',
+      year: 2023,
+      price: 35000,
+      imageUrl: 'https://images.unsplash.com/photo-1621007947382-bb3c3994e3fb?w=400&h=300&fit=crop',
+    },
+    {
+      id: '8',
+      make: 'Toyota',
+      model: 'Sienna',
+      year: 2023,
+      price: 36000,
+      imageUrl: 'https://images.unsplash.com/photo-1606664515524-ed2f786a0bd6?w=400&h=300&fit=crop',
+    },
+  ];
+  // Mock data for dropdowns - only Toyota models
+  const carModels = ['Camry', 'Corolla', 'RAV4', 'Highlander', '4Runner', 'Prius', 'Tacoma', 'Sienna', 'Tundra', 'Sequoia', 'Land Cruiser Amazon', 'Land Cruiser', 'GT86', 'Yarris'];
+  const years = Array.from({ length: 2024 - 1990 + 1 }, (_, i) => (1990 + i).toString());
 
 
   // Handle click on home screen to open onboarding modal
   const handleHomeClick = (e: React.MouseEvent) => {
-    // Don't open modal if clicking on interactive elements
+    // Don't open modal if clicking on interactive elements or car cards
     const target = e.target as HTMLElement;
     if (
       target.tagName === 'BUTTON' ||
       target.tagName === 'INPUT' ||
       target.tagName === 'SELECT' ||
       target.tagName === 'A' ||
+      target.tagName === 'IMG' ||
       target.closest('button') ||
       target.closest('input') ||
       target.closest('select') ||
       target.closest('a') ||
-      target.closest('form')
+      target.closest('form') ||
+      target.closest('[class*="bg-white border"]') // Car cards have this styling
     ) {
       return;
     }
@@ -76,64 +143,71 @@ export const Home = () => {
     }
   };
   
-  // Fetch available filters (models and years) from CSV
-  useEffect(() => {
-    const fetchFilters = async () => {
-      try {
-        const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000';
-        const response = await fetch(`${API_URL}/api/cars/filters`);
-        const data = await response.json();
-        
-        if (data.success) {
-          setCarModels(data.models || []);
-          setYears(data.years || []);
-        }
-      } catch (err) {
-        console.error('Failed to fetch filters:', err);
-      }
-    };
-    
-    fetchFilters();
-  }, []);
+  const [searchResults, setSearchResults] = useState<Car[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState('');
 
-  // Fetch cars from CSV based on filters
-  const fetchCars = async (model: string, year: string) => {
-    setLoading(true);
-    setError(null);
-    
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+  
+    if (!carModel || !year) {
+      setSearchError('Please select both car model and year');
+      return;
+    }
+  
+    setIsSearching(true);
+    setSearchError('');
+  
     try {
-      const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000';
-      const params = new URLSearchParams();
-      if (model) params.append('model', model);
-      if (year) params.append('year', year);
-      
-      const response = await fetch(`${API_URL}/api/cars/search?${params.toString()}`);
-      const data = await response.json();
-      
-      if (data.success) {
-        setCars(data.cars || []);
-      } else {
-        setError(data.error || 'Failed to fetch cars');
-        setCars([]);
+      // Call backend API with POST (backend only accepts POST)
+      const response = await api.post('/api/search', {
+        make: 'Toyota',
+        model: carModel,
+        year: year,
+      });
+  
+      // ✅ Access JSON data properly - api.post returns the JSON directly
+      // Handle Flask's structured response
+      const listings = response.listings || response.data || [];
+  
+      if (!Array.isArray(listings)) {
+        console.error('Listings is not an array:', listings);
+        setSearchError('Invalid response format from API');
+        setSearchResults([]);
+        return;
       }
-    } catch (err: any) {
-      console.error('Failed to fetch cars:', err);
-      setError(err.message || 'Failed to fetch cars');
-      setCars([]);
+  
+      // Transform data
+      const transformedCars: Car[] = listings.map((listing: any, index: number) => {
+        const vehicle = listing.vehicle || {};
+        const retailListing = listing.retailListing || {};
+        const vin = listing.vin || listing["@id"]?.split("/").pop() || `search-${index}`;
+        
+        return {
+          id: vin,
+          make: vehicle.make || 'Toyota',
+          model: vehicle.model || carModel,
+          year: vehicle.year || parseInt(year),
+          price: retailListing.price || 0,
+          imageUrl: retailListing.primaryImage || 'https://via.placeholder.com/400x300',
+          link: retailListing.vdp || undefined,
+        };
+      });
+  
+      setSearchResults(transformedCars);
+    } catch (error: any) {
+      console.error('Search error:', error);
+      setSearchError(
+        error.response?.data?.error ||
+        error.message ||
+        'Failed to search for cars. Please try again.'
+      );
+      setSearchResults([]);
     } finally {
-      setLoading(false);
+      setIsSearching(false);
     }
   };
-
-  // Load all cars on mount
-  useEffect(() => {
-    fetchCars('', '');
-  }, []);
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    fetchCars(carModel, year);
-  };
+  
 
   // Carousel navigation
   const nextSlide = () => {
@@ -152,6 +226,27 @@ export const Home = () => {
 
     return () => clearInterval(interval);
   }, [carouselImages.length]);
+
+  // Check if user needs onboarding when they first land on the page
+  useEffect(() => {
+    // Wait for auth to finish loading
+    if (!loading && currentUser) {
+      const hasCompletedOnboarding = localStorage.getItem(`onboarding_${currentUser.uid}`);
+      const justSignedUp = sessionStorage.getItem('justSignedUp');
+      
+      if (!hasCompletedOnboarding || justSignedUp === 'true') {
+        // Clear the justSignedUp flag
+        if (justSignedUp === 'true') {
+          sessionStorage.removeItem('justSignedUp');
+        }
+        // Small delay to ensure the component is fully rendered
+        const timer = setTimeout(() => {
+          setShowOnboarding(true);
+        }, 100);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [currentUser, loading]);
 
   // Listen for custom event to show onboarding modal from header
   useEffect(() => {
@@ -219,12 +314,19 @@ export const Home = () => {
                 {/* Search Button */}
                 <button
                   type="submit"
-                  className="bg-[#DC2626] text-white px-8 py-3 rounded-lg font-semibold text-sm hover:bg-[#B91C1C] transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[#DC2626] focus:ring-offset-2 whitespace-nowrap"
+                  disabled={isSearching}
+                  className="bg-[#DC2626] text-white px-8 py-3 rounded-lg font-semibold text-sm hover:bg-[#B91C1C] transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[#DC2626] focus:ring-offset-2 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Search
+                  {isSearching ? 'Searching...' : 'Search'}
                 </button>
               </form>
             </div>
+            {/* Error Message */}
+            {searchError && (
+              <div className="mt-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+                {searchError}
+              </div>
+            )}
           </div>
           {/* Carousel Section */}
           <div className="px-4 sm:px-8 md:px-16 mt-8">
@@ -326,36 +428,34 @@ export const Home = () => {
           {/* Recommended Section */}
           <div className="px-4 sm:px-8 md:px-16 mt-16 pb-16">
             <h2 className="text-3xl font-bold text-[#1F2937] mb-8">
-              Recommended Cars for You
+              {searchResults.length > 0 ? 'Search Results' : 'Recommended Cars for You'}
             </h2>
             {/* Loading State */}
-            {loading && (
+            {isSearching && (
               <div className="text-center py-8 text-text-secondary">
                 Loading cars...
               </div>
             )}
             {/* Error State */}
-            {error && !loading && (
+            {searchError && !isSearching && (
               <div className="text-center py-8 text-red-600">
-                {error}
+                {searchError}
               </div>
             )}
             {/* Car Cards Grid */}
-            {!loading && !error && (
-              <>
-                {cars.length === 0 ? (
-                  <div className="text-center py-8 text-text-secondary">
-                    No cars found. Try adjusting your filters.
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {cars.map((car) => (
-                      <CarCard key={car.id} car={car} />
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
+            {!isSearching && searchResults.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {searchResults.map((car) => (
+                  <CarCard key={car.id} car={car} />
+                ))}
+              </div>
+            ) : !isSearching ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                {mockCars.map((car) => (
+                  <CarCard key={car.id} car={car} />
+                ))}
+              </div>
+            ) : null}
           </div>
         </main>
       </div>
